@@ -1,11 +1,12 @@
 # 3D Tetris Unity
-A Unity 2022 3D Tetris prototype using a 2D gameplay view inside a 3D cuboid world.
+This is the same thing as Tetris???
+Wait, why it's in 3D, and eliminate the blocks in 2d?
 ## Controls
 
 - A / D: move left and right
 - W: rotate piece
 - S / Space: release piece and soft drop
-- Q / E: rotate the cuboid
+- Q / E: rotate the countainer
 - Esc: pause panel
 
 ...
