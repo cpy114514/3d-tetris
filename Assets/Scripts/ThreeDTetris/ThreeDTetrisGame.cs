@@ -7,6 +7,13 @@ using UnityEngine.UI;
 public sealed class ThreeDTetrisGame : MonoBehaviour
 {
     private const int FrontLayer = 0;
+    private static readonly string[] FourPointLightNames =
+    {
+        "Tetris Front Left Light",
+        "Tetris Front Right Light",
+        "Tetris Back Left Light",
+        "Tetris Back Right Light"
+    };
 
     [Header("Board")]
     [SerializeField, Min(3)] private int boardSide = 5;
@@ -17,19 +24,62 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField, Min(0.05f)] private float fallInterval = 0.55f;
     [SerializeField, Min(0.01f)] private float softDropInterval = 0.055f;
 
+    [Header("Scoring")]
+    [SerializeField, Min(0)] private int pointsPerPlacedCube = 1;
+    [SerializeField, Min(0)] private int pointsPerClearedCube = 1;
+
     [Header("Difficulty")]
     [SerializeField, Min(1)] private int rowsPerDifficultyLevel = 4;
     [SerializeField, Min(1)] private int piecesPerDifficultyLevel = 12;
+    [SerializeField, Range(0, 40)] private int oneBlockPieceWeight = 5;
+    [SerializeField, Range(0, 40)] private int twoBlockPieceWeight = 8;
 
-    [Header("Container")]
-    [SerializeField] private float containerTurnAngle = 90f;
-    [SerializeField, Min(1f)] private float containerTurnSpeed = 280f;
+    [Header("Lighting")]
+    [SerializeField] private Color ambientLightColor = new Color(0.48f, 0.5f, 0.55f);
+    [SerializeField, Min(0f)] private float fourPointLightIntensity = 0.72f;
+    [SerializeField, Min(0.1f)] private float fourPointLightRange = 18f;
+    [SerializeField, Min(0f)] private float fourPointLightHeight = 5.6f;
+    [SerializeField, Min(0f)] private float fourPointLightDistance = 5.8f;
+    [SerializeField] private Color frontLeftLightColor = new Color(1f, 0.92f, 0.82f);
+    [SerializeField] private Color frontRightLightColor = new Color(0.74f, 0.86f, 1f);
+    [SerializeField] private Color backLeftLightColor = new Color(0.72f, 1f, 0.88f);
+    [SerializeField] private Color backRightLightColor = new Color(1f, 0.78f, 0.9f);
+
+    [Header("View Rotation")]
+    [SerializeField, InspectorName("View Turn Angle")] private float containerTurnAngle = 90f;
+    [SerializeField, Min(1f), InspectorName("View Turn Speed")] private float containerTurnSpeed = 280f;
+
+    [Header("Camera View")]
+    [SerializeField, Min(1f)] private float cameraDistance = 24f;
+    [SerializeField, Min(0f)] private float cameraHeight = 0f;
+    [SerializeField, Min(0f)] private float cameraLookAtHeight = 0f;
+    [SerializeField, Min(1f)] private float cameraOrthographicSize = 4.9f;
+
+    [Header("F Preview")]
+    [SerializeField] private float previewCameraYawOffset = 45f;
+    [SerializeField, Min(0f)] private float previewCameraHeight = 8f;
+    [SerializeField, Min(0f)] private float previewLookAtLift = 1.35f;
+    [SerializeField, Min(0.1f)] private float previewCameraSpeed = 7f;
+    [SerializeField, Min(1f)] private float previewCameraOrthographicSize = 5.8f;
+    [SerializeField, Min(0.01f), InspectorName("Preview Projection Column Tolerance")] private float previewClearColumnTolerance = 0.08f;
+
+    [Header("Next Preview")]
+    [SerializeField] private Vector2 nextPreviewViewportPosition = new Vector2(0.82f, 0.68f);
+    [SerializeField, Min(0.1f)] private float nextPreviewCameraDepth = 12f;
+    [SerializeField, Min(0.1f)] private float nextPreviewCellSpacing = 0.75f;
+    [SerializeField, Min(0.1f)] private float nextPreviewCubeSize = 0.65f;
 
     [Header("Preview And Effects")]
     [SerializeField, Range(0f, 1f)] private float ghostAlpha = 0.28f;
     [SerializeField] private Color ghostPreviewColor = new Color(0.9f, 0.92f, 0.94f);
     [SerializeField] private Color nextPreviewColor = new Color(0.82f, 0.84f, 0.86f);
-    [SerializeField, Min(0.05f)] private float clearEffectDuration = 0.36f;
+    [SerializeField, Min(0.05f)] private float clearEffectDuration = 3f;
+    [SerializeField, Min(1)] private int clearFragmentsPerCube = 5;
+    [SerializeField, Min(0.05f)] private float clearFragmentSize = 0.32f;
+    [SerializeField, Min(0.1f)] private float clearFragmentBlastSpeed = 3.8f;
+    [SerializeField, Min(0f)] private float clearFragmentGravity = 0.95f;
+    [SerializeField, Min(0f)] private float clearFragmentDrag = 0.32f;
+    [SerializeField] private Color clearFallbackFragmentColor = new Color(1f, 0.92f, 0.2f, 1f);
 
     [Header("Editable 3D References")]
     [SerializeField] private GameObject cubePrefab;
@@ -69,12 +119,37 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private float CubeSize => Mathf.Max(0.1f, cubeSize);
     private float FallInterval => Mathf.Max(0.05f, fallInterval);
     private float SoftDropInterval => Mathf.Max(0.01f, softDropInterval);
+    private int PointsPerPlacedCube => Mathf.Max(0, pointsPerPlacedCube);
+    private int PointsPerClearedCube => Mathf.Max(0, pointsPerClearedCube);
     private int RowsPerDifficultyLevel => Mathf.Max(1, rowsPerDifficultyLevel);
     private int PiecesPerDifficultyLevel => Mathf.Max(1, piecesPerDifficultyLevel);
+    private int OneBlockPieceWeight => Mathf.Max(0, oneBlockPieceWeight);
+    private int TwoBlockPieceWeight => Mathf.Max(0, twoBlockPieceWeight);
+    private float FourPointLightIntensity => Mathf.Max(0f, fourPointLightIntensity);
+    private float FourPointLightRange => Mathf.Max(0.1f, fourPointLightRange);
+    private float FourPointLightHeight => Mathf.Max(0f, fourPointLightHeight);
+    private float FourPointLightDistance => Mathf.Max(0f, fourPointLightDistance);
     private float ContainerTurnAngle => containerTurnAngle;
     private float ContainerTurnSpeed => Mathf.Max(1f, containerTurnSpeed);
+    private float CameraDistance => Mathf.Max(1f, cameraDistance);
+    private float CameraHeight => Mathf.Max(0f, cameraHeight);
+    private float CameraLookAtHeight => Mathf.Max(0f, cameraLookAtHeight);
+    private float CameraOrthographicSize => Mathf.Max(1f, cameraOrthographicSize);
+    private float PreviewCameraHeight => Mathf.Max(0f, previewCameraHeight);
+    private float PreviewLookAtLift => Mathf.Max(0f, previewLookAtLift);
+    private float PreviewCameraSpeed => Mathf.Max(0.1f, previewCameraSpeed);
+    private float PreviewCameraOrthographicSize => Mathf.Max(1f, previewCameraOrthographicSize);
+    private float PreviewClearColumnTolerance => Mathf.Max(0.01f, previewClearColumnTolerance);
+    private float NextPreviewCameraDepth => Mathf.Max(0.1f, nextPreviewCameraDepth);
+    private float NextPreviewCellSpacing => Mathf.Max(0.1f, nextPreviewCellSpacing);
+    private float NextPreviewCubeSize => Mathf.Max(0.1f, nextPreviewCubeSize);
     private float GhostAlpha => Mathf.Clamp01(ghostAlpha);
-    private float ClearEffectDuration => Mathf.Max(0.05f, clearEffectDuration);
+    private float ClearEffectDuration => Mathf.Max(1.2f, clearEffectDuration);
+    private int ClearFragmentsPerCube => Mathf.Max(1, clearFragmentsPerCube);
+    private float ClearFragmentSize => Mathf.Max(0.05f, clearFragmentSize);
+    private float ClearFragmentBlastSpeed => Mathf.Max(0.1f, clearFragmentBlastSpeed);
+    private float ClearFragmentGravity => Mathf.Max(0f, clearFragmentGravity);
+    private float ClearFragmentDrag => Mathf.Max(0f, clearFragmentDrag);
 
     private readonly Vector3Int[] wallKicks =
     {
@@ -99,10 +174,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private Transform[] ghostCubes;
     private Material[] pieceMaterials;
     private PieceDefinition[] pieces;
-    private readonly List<ClearEffect> clearEffects = new List<ClearEffect>();
+    private readonly List<ClearFragmentEffect> clearEffects = new List<ClearFragmentEffect>();
 
     private Vector3Int currentOrigin;
     private Vector3Int[] currentCells;
+    private Camera gameplayCamera;
     private int currentPieceIndex;
     private int nextPieceIndex;
     private int score;
@@ -111,8 +187,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private int lockedPieces;
     private int activeFace;
     private float fallTimer;
-    private float containerYaw;
-    private float targetContainerYaw;
+    private float viewYaw;
+    private float targetViewYaw;
     private bool pieceFalling;
     private bool gameOver;
     private bool paused;
@@ -149,11 +225,44 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         cubeSize = Mathf.Max(0.1f, cubeSize);
         fallInterval = Mathf.Max(0.05f, fallInterval);
         softDropInterval = Mathf.Max(0.01f, softDropInterval);
+        pointsPerPlacedCube = Mathf.Max(0, pointsPerPlacedCube);
+        pointsPerClearedCube = Mathf.Max(0, pointsPerClearedCube);
         rowsPerDifficultyLevel = Mathf.Max(1, rowsPerDifficultyLevel);
         piecesPerDifficultyLevel = Mathf.Max(1, piecesPerDifficultyLevel);
+        oneBlockPieceWeight = Mathf.Max(0, oneBlockPieceWeight);
+        twoBlockPieceWeight = Mathf.Max(0, twoBlockPieceWeight);
+        fourPointLightIntensity = Mathf.Max(0f, fourPointLightIntensity);
+        fourPointLightRange = Mathf.Max(0.1f, fourPointLightRange);
+        fourPointLightHeight = Mathf.Max(0f, fourPointLightHeight);
+        fourPointLightDistance = Mathf.Max(0f, fourPointLightDistance);
         containerTurnSpeed = Mathf.Max(1f, containerTurnSpeed);
+        cameraDistance = Mathf.Max(1f, cameraDistance);
+        cameraHeight = Mathf.Max(0f, cameraHeight);
+        cameraLookAtHeight = Mathf.Max(0f, cameraLookAtHeight);
+        cameraOrthographicSize = Mathf.Max(1f, cameraOrthographicSize);
+        previewCameraHeight = Mathf.Max(0f, previewCameraHeight);
+        previewLookAtLift = Mathf.Max(0f, previewLookAtLift);
+        previewCameraSpeed = Mathf.Max(0.1f, previewCameraSpeed);
+        previewCameraOrthographicSize = Mathf.Max(1f, previewCameraOrthographicSize);
+        previewClearColumnTolerance = Mathf.Max(0.01f, previewClearColumnTolerance);
+        nextPreviewViewportPosition.x = Mathf.Clamp01(nextPreviewViewportPosition.x);
+        nextPreviewViewportPosition.y = Mathf.Clamp01(nextPreviewViewportPosition.y);
+        nextPreviewCameraDepth = Mathf.Max(0.1f, nextPreviewCameraDepth);
+        nextPreviewCellSpacing = Mathf.Max(0.1f, nextPreviewCellSpacing);
+        nextPreviewCubeSize = Mathf.Max(0.1f, nextPreviewCubeSize);
         ghostAlpha = Mathf.Clamp01(ghostAlpha);
         clearEffectDuration = Mathf.Max(0.05f, clearEffectDuration);
+        clearFragmentsPerCube = Mathf.Max(1, clearFragmentsPerCube);
+        clearFragmentSize = Mathf.Max(0.05f, clearFragmentSize);
+        clearFragmentBlastSpeed = Mathf.Max(0.1f, clearFragmentBlastSpeed);
+        clearFragmentGravity = Mathf.Max(0f, clearFragmentGravity);
+        clearFragmentDrag = Mathf.Max(0f, clearFragmentDrag);
+
+        if (!Application.isPlaying)
+        {
+            ApplyCameraTransform(0f, false, true);
+            ConfigureNextPreviewRoot();
+        }
     }
 
     [ContextMenu("Build Editable Scene Objects")]
@@ -175,9 +284,16 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         BuildCuboid();
     }
 
+    [ContextMenu("Apply Editable Lighting")]
+    public void ApplyEditableLighting()
+    {
+        SetupLighting();
+    }
+
     private void Update()
     {
-        UpdateContainerRotation();
+        UpdateViewRotation();
+        UpdatePreviewCamera();
         UpdateClearEffects();
         UpdateDeathWarning();
         UpdateUi();
@@ -199,6 +315,13 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return;
         }
 
+        if (Input.GetKeyDown(KeyCode.F) || Input.GetKeyUp(KeyCode.F))
+        {
+            TryClearSelectedFace();
+            RefreshGhostPiece();
+            UpdateDeathWarning();
+        }
+
         if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.S))
         {
             pieceFalling = true;
@@ -217,19 +340,23 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Q))
         {
-            targetContainerYaw -= ContainerTurnAngle;
+            targetViewYaw += ContainerTurnAngle;
             activeFace = WrapFace(activeFace - 1);
             TryClearSelectedFace();
+            RefreshActivePiece();
             RefreshGhostPiece();
+            RefreshDeathWarningVisual();
             UpdateDeathWarning();
         }
 
         if (Input.GetKeyDown(KeyCode.E))
         {
-            targetContainerYaw += ContainerTurnAngle;
+            targetViewYaw -= ContainerTurnAngle;
             activeFace = WrapFace(activeFace + 1);
             TryClearSelectedFace();
+            RefreshActivePiece();
             RefreshGhostPiece();
+            RefreshDeathWarningVisual();
             UpdateDeathWarning();
         }
 
@@ -453,6 +580,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     {
         pieces = new[]
         {
+            new PieceDefinition("Dot1", new Color(0.92f, 0.98f, 1f), 1, new Vector3Int(0, 0, 0)),
+            new PieceDefinition("I2", new Color(0.46f, 1f, 0.92f), 1, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0)),
             new PieceDefinition("I3", new Color(0f, 0.9f, 1f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0)),
             new PieceDefinition("V3", new Color(0.22f, 0.42f, 1f), 1, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
             new PieceDefinition("O", new Color(1f, 0.86f, 0.12f), 1, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
@@ -504,9 +633,13 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             deathWarningMaterial = MakeTransparentMaterial("Death Warning", new Color(1f, 0f, 0f, 0f), 0f, 0.08f);
         }
 
-        if (clearEffectMaterial == null)
+        if (clearEffectMaterial == null || IsOldParticleMaterial(clearEffectMaterial))
         {
-            clearEffectMaterial = MakeTransparentMaterial("Clear Row Flash", new Color(1f, 0.28f, 0.22f, 0.38f), 0f, 0.2f);
+            clearEffectMaterial = MakeTransparentMaterial("Clear Block Fragment", Color.white, 0.02f, 0.45f);
+        }
+        else
+        {
+            ConfigureTransparentMaterial(clearEffectMaterial, Color.white);
         }
 
         pieceMaterials = new Material[pieces.Length];
@@ -531,6 +664,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         effectsRoot = GetOrCreateChild(effectsRoot, "Clear Effects", transform);
 
         lockedRoot.SetParent(containerRoot, false);
+        ConfigureNextPreviewRoot();
 
         if (containerVisualRoot.childCount == 0)
         {
@@ -586,8 +720,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
     private void BuildDeathWarning()
     {
-        Vector3 position = ViewToLocal(BoardWidth / 2, BoardHeight - 1) + new Vector3(0f, 0f, -0.09f);
-        deathWarningBar = CreateCube("Death Row Warning", position, new Vector3(BoardWidth, 0.92f, 0.045f), deathWarningMaterial, warningRoot);
+        deathWarningBar = CreateCube("Death Row Warning", Vector3.zero, Vector3.one, deathWarningMaterial, warningRoot);
+        RefreshDeathWarningVisual();
         deathWarningBar.gameObject.SetActive(false);
     }
 
@@ -605,45 +739,139 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.06f, 0.075f, 0.095f);
         camera.orthographic = true;
-        camera.orthographicSize = 4.9f;
+        camera.orthographicSize = CameraOrthographicSize;
         camera.fieldOfView = 42f;
         camera.nearClipPlane = 0.1f;
         camera.farClipPlane = 200f;
-        camera.transform.position = new Vector3(0f, 0f, -24f);
-        camera.transform.LookAt(Vector3.zero, Vector3.up);
+
+        gameplayCamera = camera;
+        ApplyCameraTransform(0f, false, true);
+    }
+
+    private void ApplyCameraTransform(float yaw, bool preview, bool instant)
+    {
+        if (gameplayCamera == null)
+        {
+            gameplayCamera = Camera.main;
+        }
+
+        if (gameplayCamera == null)
+        {
+            return;
+        }
+
+        float height = preview ? PreviewCameraHeight : CameraHeight;
+        float lookAtHeight = preview ? PreviewLookAtLift : CameraLookAtHeight;
+        float orthographicSize = preview ? PreviewCameraOrthographicSize : CameraOrthographicSize;
+        Vector3 targetPosition = GetCameraPosition(yaw, height);
+        Quaternion targetRotation = GetCameraRotation(targetPosition, lookAtHeight);
+
+        if (instant)
+        {
+            gameplayCamera.transform.position = targetPosition;
+            gameplayCamera.transform.rotation = targetRotation;
+            gameplayCamera.orthographicSize = orthographicSize;
+            return;
+        }
+
+        float lerp = 1f - Mathf.Exp(-PreviewCameraSpeed * Time.deltaTime);
+        gameplayCamera.transform.position = Vector3.Lerp(gameplayCamera.transform.position, targetPosition, lerp);
+        gameplayCamera.transform.rotation = Quaternion.Slerp(gameplayCamera.transform.rotation, targetRotation, lerp);
+        gameplayCamera.orthographicSize = Mathf.Lerp(gameplayCamera.orthographicSize, orthographicSize, lerp);
+    }
+
+    private Vector3 GetCameraPosition(float yaw, float height)
+    {
+        return Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, height, -CameraDistance);
+    }
+
+    private Quaternion GetCameraRotation(Vector3 position, float lookAtHeight)
+    {
+        Vector3 forward = Vector3.up * lookAtHeight - position;
+        if (forward.sqrMagnitude <= 0.0001f)
+        {
+            forward = Vector3.forward;
+        }
+
+        return Quaternion.LookRotation(forward, Vector3.up);
     }
 
     private void SetupLighting()
     {
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.42f, 0.45f, 0.5f);
+        RenderSettings.ambientLight = ambientLightColor;
+        RenderSettings.sun = null;
 
-        Light mainLight = FindObjectOfType<Light>();
-        if (mainLight == null)
+        DisableLegacyLights();
+
+        float distance = FourPointLightDistance;
+        float height = FourPointLightHeight;
+        ConfigurePointLight(FourPointLightNames[0], new Vector3(-distance, height, -distance), frontLeftLightColor);
+        ConfigurePointLight(FourPointLightNames[1], new Vector3(distance, height, -distance), frontRightLightColor);
+        ConfigurePointLight(FourPointLightNames[2], new Vector3(-distance, height, distance), backLeftLightColor);
+        ConfigurePointLight(FourPointLightNames[3], new Vector3(distance, height, distance), backRightLightColor);
+    }
+
+    private void DisableLegacyLights()
+    {
+        Light[] lights = FindObjectsOfType<Light>(true);
+        for (int i = 0; i < lights.Length; i++)
         {
-            GameObject lightObject = new GameObject("Directional Light");
-            mainLight = lightObject.AddComponent<Light>();
+            Light light = lights[i];
+            if (light == null)
+            {
+                continue;
+            }
+
+            if (light.type == LightType.Directional || light.name == "Tetris Fill Light")
+            {
+                light.enabled = false;
+            }
+        }
+    }
+
+    private void ConfigurePointLight(string lightName, Vector3 localPosition, Color color)
+    {
+        Light pointLight = GetOrCreatePointLight(lightName);
+        pointLight.enabled = true;
+        pointLight.type = LightType.Point;
+        pointLight.color = color;
+        pointLight.intensity = FourPointLightIntensity;
+        pointLight.range = FourPointLightRange;
+        pointLight.shadows = LightShadows.None;
+        pointLight.renderMode = LightRenderMode.Auto;
+        pointLight.bounceIntensity = 0.35f;
+
+        Transform lightTransform = pointLight.transform;
+        lightTransform.SetParent(transform, false);
+        lightTransform.localPosition = localPosition;
+        lightTransform.localRotation = Quaternion.identity;
+        lightTransform.localScale = Vector3.one;
+    }
+
+    private Light GetOrCreatePointLight(string lightName)
+    {
+        Transform foundTransform = transform.Find(lightName);
+        if (foundTransform == null)
+        {
+            GameObject foundObject = GameObject.Find(lightName);
+            if (foundObject != null)
+            {
+                foundTransform = foundObject.transform;
+            }
         }
 
-        mainLight.type = LightType.Directional;
-        mainLight.intensity = 1.15f;
-        mainLight.color = new Color(1f, 0.95f, 0.86f);
-        mainLight.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        GameObject lightObject = foundTransform != null ? foundTransform.gameObject : new GameObject(lightName);
+        lightObject.name = lightName;
+        lightObject.SetActive(true);
 
-        Transform fillTransform = transform.Find("Tetris Fill Light");
-        GameObject fillObject = fillTransform != null ? fillTransform.gameObject : new GameObject("Tetris Fill Light");
-        fillObject.transform.SetParent(transform, false);
-        fillObject.transform.position = new Vector3(-4f, 8f, -8f);
-        Light fillLight = fillObject.GetComponent<Light>();
-        if (fillLight == null)
+        Light pointLight = lightObject.GetComponent<Light>();
+        if (pointLight == null)
         {
-            fillLight = fillObject.AddComponent<Light>();
+            pointLight = lightObject.AddComponent<Light>();
         }
 
-        fillLight.type = LightType.Point;
-        fillLight.range = 24f;
-        fillLight.intensity = 0.8f;
-        fillLight.color = new Color(0.45f, 0.68f, 1f);
+        return pointLight;
     }
 
     private Transform CreateChild(string childName)
@@ -672,13 +900,66 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         return child.transform;
     }
 
-    private void UpdateContainerRotation()
+    private void UpdateViewRotation()
     {
-        containerYaw = Mathf.MoveTowardsAngle(containerYaw, targetContainerYaw, ContainerTurnSpeed * Time.deltaTime);
+        viewYaw = Mathf.MoveTowardsAngle(viewYaw, targetViewYaw, ContainerTurnSpeed * Time.deltaTime);
         if (containerRoot != null)
         {
-            containerRoot.localRotation = Quaternion.Euler(0f, containerYaw, 0f);
+            containerRoot.localRotation = Quaternion.identity;
         }
+    }
+
+    private void UpdatePreviewCamera()
+    {
+        if (gameplayCamera == null)
+        {
+            gameplayCamera = Camera.main;
+        }
+
+        if (gameplayCamera == null)
+        {
+            return;
+        }
+
+        bool preview = IsPreviewHeld();
+        float yaw = viewYaw + (preview ? previewCameraYawOffset : 0f);
+        ApplyCameraTransform(yaw, preview, false);
+        ConfigureNextPreviewRoot();
+    }
+
+    private bool IsPreviewHeld()
+    {
+        return Input.GetKey(KeyCode.F);
+    }
+
+    private void ConfigureNextPreviewRoot()
+    {
+        if (nextRoot == null)
+        {
+            return;
+        }
+
+        if (gameplayCamera == null)
+        {
+            gameplayCamera = Camera.main;
+        }
+
+        if (gameplayCamera == null)
+        {
+            return;
+        }
+
+        nextRoot.SetParent(gameplayCamera.transform, false);
+        nextRoot.localRotation = Quaternion.identity;
+
+        float orthographicSize = Mathf.Max(1f, gameplayCamera.orthographicSize);
+        float aspect = gameplayCamera.aspect > 0f ? gameplayCamera.aspect : 16f / 9f;
+        float localX = (Mathf.Clamp01(nextPreviewViewportPosition.x) - 0.5f) * 2f * orthographicSize * aspect;
+        float localY = (Mathf.Clamp01(nextPreviewViewportPosition.y) - 0.5f) * 2f * orthographicSize;
+        nextRoot.localPosition = new Vector3(localX, localY, NextPreviewCameraDepth);
+
+        float scale = orthographicSize / CameraOrthographicSize;
+        nextRoot.localScale = Vector3.one * scale;
     }
 
     private void ResetGame()
@@ -707,12 +988,14 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         lockedPieces = 0;
         activeFace = 0;
         fallTimer = 0f;
-        containerYaw = 0f;
-        targetContainerYaw = 0f;
+        viewYaw = 0f;
+        targetViewYaw = 0f;
         pieceFalling = false;
         gameOver = false;
         paused = false;
         nextPieceIndex = RandomPieceIndex();
+
+        ApplyCameraTransform(0f, false, true);
 
         if (containerRoot != null)
         {
@@ -800,15 +1083,45 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
     private void RefreshNextPreview()
     {
+        if (nextRoot == null)
+        {
+            return;
+        }
+
+        ConfigureNextPreviewRoot();
         ClearChildren(nextRoot);
 
-        Vector3 anchor = new Vector3(BoardWidth * 0.5f + 3f, 3.1f, 0f);
         Vector3Int[] cells = pieces[nextPieceIndex].Cells;
+        Vector3 anchor = GetNextPreviewAnchor(cells);
         for (int i = 0; i < cells.Length; i++)
         {
-            Vector3 position = anchor + new Vector3(cells[i].x * 0.75f, cells[i].y * 0.75f, cells[i].z * 0.75f);
-            CreateCube("Next Block", position, Vector3.one * 0.65f, nextPreviewMaterial, nextRoot);
+            Vector3 position = anchor + new Vector3(
+                cells[i].x * NextPreviewCellSpacing,
+                cells[i].y * NextPreviewCellSpacing,
+                cells[i].z * NextPreviewCellSpacing);
+            CreateCube("Next Block", position, Vector3.one * NextPreviewCubeSize, nextPreviewMaterial, nextRoot);
         }
+    }
+
+    private Vector3 GetNextPreviewAnchor(Vector3Int[] cells)
+    {
+        if (cells == null || cells.Length == 0)
+        {
+            return Vector3.zero;
+        }
+
+        Vector2 min = new Vector2(cells[0].x, cells[0].y);
+        Vector2 max = min;
+        for (int i = 1; i < cells.Length; i++)
+        {
+            min.x = Mathf.Min(min.x, cells[i].x);
+            min.y = Mathf.Min(min.y, cells[i].y);
+            max.x = Mathf.Max(max.x, cells[i].x);
+            max.y = Mathf.Max(max.y, cells[i].y);
+        }
+
+        Vector2 center = (min + max) * 0.5f;
+        return new Vector3(-center.x * NextPreviewCellSpacing, -center.y * NextPreviewCellSpacing, 0f);
     }
 
     private bool TryMove(Vector3Int delta)
@@ -880,7 +1193,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         ClearChildren(ghostRoot);
 
         lockedPieces++;
-        score += 10 * level;
+        score += currentCells.Length * PointsPerPlacedCube;
         RecalculateLevel();
         ApplyClearedRows(ClearFullRows());
 
@@ -892,16 +1205,15 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         ApplyClearedRows(ClearFullRows());
     }
 
-    private void ApplyClearedRows(int clearedRows)
+    private void ApplyClearedRows(ClearResult clearResult)
     {
-        if (clearedRows <= 0)
+        if (clearResult.Rows <= 0)
         {
             return;
         }
 
-        int[] rowScores = { 0, 500, 1500, 3500, 7000 };
-        score += rowScores[Mathf.Min(clearedRows, 4)] * level;
-        layers += clearedRows;
+        score += clearResult.Blocks * PointsPerClearedCube;
+        layers += clearResult.Rows;
         RecalculateLevel();
     }
 
@@ -946,7 +1258,17 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         int age = Mathf.Max(0, level - piece.UnlockLevel);
         int cells = piece.Cells.Length;
 
-        if (cells <= 3)
+        if (cells == 1)
+        {
+            return OneBlockPieceWeight;
+        }
+
+        if (cells == 2)
+        {
+            return TwoBlockPieceWeight;
+        }
+
+        if (cells == 3)
         {
             return Mathf.Max(45, 95 - level * 4);
         }
@@ -984,36 +1306,224 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         return "Simple";
     }
 
-    private int ClearFullRows()
+    private ClearResult ClearFullRows()
     {
-        int cleared = 0;
+        if (IsPreviewHeld())
+        {
+            return ClearPreviewThreeDLines();
+        }
+
+        return ClearSelectedFaceRows();
+    }
+
+    private ClearResult ClearSelectedFaceRows()
+    {
+        ClearResult clearResult = new ClearResult();
 
         for (int y = 0; y < BoardHeight; y++)
         {
-            bool full = true;
-            for (int x = 0; x < BoardWidth; x++)
-            {
-                if (!IsProjectedOccupied(x, y))
-                {
-                    full = false;
-                    break;
-                }
-            }
-
-            if (!full)
+            if (!IsSelectedFaceRowFull(y))
             {
                 continue;
             }
 
-            SpawnClearEffect(y);
-            ClearWorldLayer(y);
+            List<ClearBlockFragment> clearedBlocksForEffects = new List<ClearBlockFragment>();
+            int clearedBlocks = ClearWorldLayer(y, clearedBlocksForEffects);
+            SpawnClearEffect(clearedBlocksForEffects);
+            clearResult.Blocks += clearedBlocks;
             CollapseWorldAbove(y);
 
-            cleared++;
+            clearResult.Rows++;
             y--;
         }
 
-        return cleared;
+        return clearResult;
+    }
+
+    private ClearResult ClearPreviewThreeDLines()
+    {
+        ClearResult clearResult = new ClearResult();
+        HashSet<Vector3Int> cellsToClear = new HashSet<Vector3Int>();
+
+        for (int y = 0; y < BoardHeight; y++)
+        {
+            clearResult.Rows += CollectPreviewLineCells(y, new Vector2Int(1, 0), cellsToClear);
+            clearResult.Rows += CollectPreviewLineCells(y, new Vector2Int(0, 1), cellsToClear);
+            clearResult.Rows += CollectPreviewLineCells(y, new Vector2Int(1, 1), cellsToClear);
+            clearResult.Rows += CollectPreviewLineCells(y, new Vector2Int(1, -1), cellsToClear);
+        }
+
+        if (cellsToClear.Count == 0)
+        {
+            clearResult.Rows = 0;
+            return clearResult;
+        }
+
+        List<Vector3Int> clearedCells = new List<Vector3Int>(cellsToClear);
+        List<ClearBlockFragment> clearedBlocksForEffects = new List<ClearBlockFragment>();
+        clearResult.Blocks = ClearWorldCells(clearedCells, clearedBlocksForEffects);
+        SpawnClearEffect(clearedBlocksForEffects);
+        CollapseColumnsAboveClearedCells(clearedCells);
+
+        if (clearResult.Blocks <= 0)
+        {
+            clearResult.Rows = 0;
+        }
+
+        return clearResult;
+    }
+
+    private int CollectPreviewLineCells(int y, Vector2Int direction, HashSet<Vector3Int> cellsToClear)
+    {
+        int lines = 0;
+        int lineLength = BoardWidth;
+
+        for (int x = 0; x < BoardWidth; x++)
+        {
+            for (int z = 0; z < BoardDepth; z++)
+            {
+                int endX = x + direction.x * (lineLength - 1);
+                int endZ = z + direction.y * (lineLength - 1);
+                if (!IsInsideBoardXZ(endX, endZ) || IsInsideBoardXZ(x - direction.x, z - direction.y))
+                {
+                    continue;
+                }
+
+                if (!IsPreviewLineFull(x, z, y, direction, lineLength))
+                {
+                    continue;
+                }
+
+                for (int step = 0; step < lineLength; step++)
+                {
+                    cellsToClear.Add(new Vector3Int(x + direction.x * step, y, z + direction.y * step));
+                }
+
+                lines++;
+            }
+        }
+
+        return lines;
+    }
+
+    private bool IsPreviewLineFull(int startX, int startZ, int y, Vector2Int direction, int lineLength)
+    {
+        for (int step = 0; step < lineLength; step++)
+        {
+            int x = startX + direction.x * step;
+            int z = startZ + direction.y * step;
+            if (!IsInsideBoardXZ(x, z) || grid[x, y, z] == null)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsInsideBoardXZ(int x, int z)
+    {
+        return x >= 0 && x < BoardWidth && z >= 0 && z < BoardDepth;
+    }
+
+    private bool IsSelectedFaceRowFull(int y)
+    {
+        for (int x = 0; x < BoardWidth; x++)
+        {
+            if (!IsProjectedOccupied(x, y))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsPreviewProjectedRowFull(int y)
+    {
+        List<float> columns = GetPreviewProjectionColumns();
+        if (columns.Count == 0)
+        {
+            return false;
+        }
+
+        bool[] occupiedColumns = new bool[columns.Count];
+        Vector3 right = GetPreviewProjectionRight();
+        for (int x = 0; x < BoardWidth; x++)
+        {
+            for (int z = 0; z < BoardDepth; z++)
+            {
+                if (grid[x, y, z] == null)
+                {
+                    continue;
+                }
+
+                int column = FindPreviewProjectionColumn(columns, Vector3.Dot(GridToLocal(x, y, z), right));
+                if (column >= 0)
+                {
+                    occupiedColumns[column] = true;
+                }
+            }
+        }
+
+        for (int i = 0; i < occupiedColumns.Length; i++)
+        {
+            if (!occupiedColumns[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private List<float> GetPreviewProjectionColumns()
+    {
+        List<float> columns = new List<float>();
+        Vector3 right = GetPreviewProjectionRight();
+        for (int x = 0; x < BoardWidth; x++)
+        {
+            for (int z = 0; z < BoardDepth; z++)
+            {
+                AddPreviewProjectionColumn(columns, Vector3.Dot(GridToLocal(x, 0, z), right));
+            }
+        }
+
+        columns.Sort();
+        return columns;
+    }
+
+    private Vector3 GetPreviewProjectionRight()
+    {
+        float yaw = targetViewYaw + previewCameraYawOffset;
+        Vector3 position = GetCameraPosition(yaw, PreviewCameraHeight);
+        return GetCameraRotation(position, PreviewLookAtLift) * Vector3.right;
+    }
+
+    private void AddPreviewProjectionColumn(List<float> columns, float projection)
+    {
+        for (int i = 0; i < columns.Count; i++)
+        {
+            if (Mathf.Abs(columns[i] - projection) <= PreviewClearColumnTolerance)
+            {
+                return;
+            }
+        }
+
+        columns.Add(projection);
+    }
+
+    private int FindPreviewProjectionColumn(List<float> columns, float projection)
+    {
+        for (int i = 0; i < columns.Count; i++)
+        {
+            if (Mathf.Abs(columns[i] - projection) <= PreviewClearColumnTolerance)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private void UpdateDeathWarning()
@@ -1023,6 +1533,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return;
         }
 
+        RefreshDeathWarningVisual();
         bool nearDeath = !gameOver && IsNearDeath();
         deathWarningBar.gameObject.SetActive(nearDeath);
         if (!nearDeath)
@@ -1032,6 +1543,19 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         float alpha = Mathf.Lerp(0.09f, 0.38f, Mathf.PingPong(Time.time * 4f, 1f));
         deathWarningMaterial.color = new Color(1f, 0f, 0f, alpha);
+    }
+
+    private void RefreshDeathWarningVisual()
+    {
+        if (deathWarningBar == null)
+        {
+            return;
+        }
+
+        deathWarningBar.localPosition = ViewToLocal(BoardWidth / 2, BoardHeight - 1) + GetFaceOutwardNormal(activeFace) * 0.09f;
+        deathWarningBar.localScale = IsSideFace(activeFace)
+            ? new Vector3(0.045f, 0.92f, BoardWidth)
+            : new Vector3(BoardWidth, 0.92f, 0.045f);
     }
 
     private bool IsNearDeath()
@@ -1050,20 +1574,58 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         return false;
     }
 
-    private void SpawnClearEffect(int y)
+    private void SpawnClearEffect(List<ClearBlockFragment> clearedBlocks)
     {
-        Material effectMaterial = new Material(clearEffectMaterial);
-        Vector3 position = ViewToLocal(BoardWidth / 2, y) + new Vector3(0f, 0f, -0.12f);
-        Transform effect = CreateCube("Clear Row Flash", position, new Vector3(BoardWidth, 0.92f, 0.06f), effectMaterial, effectsRoot);
-        clearEffects.Add(new ClearEffect(effect, effectMaterial, ClearEffectDuration));
+        for (int i = 0; i < clearedBlocks.Count; i++)
+        {
+            SpawnBlockBreakEffect(clearedBlocks[i]);
+        }
+    }
+
+    private void SpawnBlockBreakEffect(ClearBlockFragment block)
+    {
+        for (int i = 0; i < ClearFragmentsPerCube; i++)
+        {
+            SpawnFragment(block);
+        }
+    }
+
+    private void SpawnFragment(ClearBlockFragment block)
+    {
+        Color fragmentColor = MakeFragmentColor(block.Color, Random.Range(0f, 0.18f), 1f);
+        Material fragmentMaterial = MakeClearFragmentMaterial(fragmentColor);
+        Vector3 fragmentScale = RandomFragmentScale();
+        Transform fragment = CreateCube("Block Fragment", Vector3.zero, fragmentScale, fragmentMaterial, effectsRoot);
+        fragment.position = block.Position + Random.insideUnitSphere * CubeSize * 0.16f;
+        fragment.rotation = Random.rotationUniform;
+
+        Vector3 direction = Random.onUnitSphere;
+        direction.y = Mathf.Abs(direction.y) * 0.45f + Random.Range(0.08f, 0.42f);
+        direction.Normalize();
+
+        Vector3 velocity = direction * Random.Range(ClearFragmentBlastSpeed * 0.65f, ClearFragmentBlastSpeed * 1.12f);
+        Vector3 angularVelocity = new Vector3(
+            Random.Range(-280f, 280f),
+            Random.Range(-360f, 360f),
+            Random.Range(-300f, 300f));
+
+        clearEffects.Add(new ClearFragmentEffect(
+            fragment,
+            fragmentMaterial,
+            velocity,
+            angularVelocity,
+            Random.Range(ClearEffectDuration * 0.82f, ClearEffectDuration * 1.18f),
+            fragmentColor,
+            fragmentScale));
     }
 
     private void UpdateClearEffects()
     {
+        float deltaTime = Time.deltaTime;
         for (int i = clearEffects.Count - 1; i >= 0; i--)
         {
-            ClearEffect effect = clearEffects[i];
-            effect.Age += Time.deltaTime;
+            ClearFragmentEffect effect = clearEffects[i];
+            effect.Age += deltaTime;
 
             if (effect.Transform == null || effect.Age >= effect.Duration)
             {
@@ -1081,16 +1643,68 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 continue;
             }
 
-            float progress = effect.Age / effect.Duration;
-            float alpha = Mathf.Lerp(0.45f, 0f, progress);
-            effect.Material.color = new Color(1f, Mathf.Lerp(0.22f, 0.95f, progress), 0.16f, alpha);
-            effect.Transform.localScale = new Vector3(BoardWidth + progress * 0.7f, 0.92f + progress * 0.35f, 0.06f);
+            effect.Velocity += Vector3.down * ClearFragmentGravity * deltaTime;
+            effect.Velocity *= Mathf.Exp(-ClearFragmentDrag * deltaTime);
+            effect.Transform.position += effect.Velocity * deltaTime;
+            effect.Transform.Rotate(effect.AngularVelocity * deltaTime, Space.Self);
+
+            float progress = Mathf.Clamp01(effect.Age / effect.Duration);
+            if (effect.Material != null)
+            {
+                Color color = effect.Color;
+                color.a = progress < 0.72f ? 1f : Mathf.InverseLerp(1f, 0.72f, progress);
+                effect.Material.color = color;
+            }
+
+            if (progress > 0.82f)
+            {
+                float shrink = Mathf.Lerp(1f, 0.72f, Mathf.InverseLerp(0.82f, 1f, progress));
+                effect.Transform.localScale = effect.StartScale * shrink;
+            }
+
             clearEffects[i] = effect;
         }
     }
 
-    private void ClearWorldLayer(int y)
+    private Vector3 RandomFragmentScale()
     {
+        float baseSize = ClearFragmentSize;
+        return new Vector3(
+            Random.Range(baseSize * 0.72f, baseSize * 1.18f),
+            Random.Range(baseSize * 0.62f, baseSize * 1.05f),
+            Random.Range(baseSize * 0.7f, baseSize * 1.16f));
+    }
+
+    private int ClearWorldCells(List<Vector3Int> cells, List<ClearBlockFragment> clearedBlocksForEffects)
+    {
+        int clearedBlocks = 0;
+        for (int i = 0; i < cells.Count; i++)
+        {
+            Vector3Int cell = cells[i];
+            if (cell.x < 0 || cell.x >= BoardWidth || cell.y < 0 || cell.y >= BoardHeight || cell.z < 0 || cell.z >= BoardDepth)
+            {
+                continue;
+            }
+
+            Transform block = grid[cell.x, cell.y, cell.z];
+            if (block == null)
+            {
+                continue;
+            }
+
+            clearedBlocksForEffects.Add(new ClearBlockFragment(block.position, GetBlockColor(block)));
+            Destroy(block.gameObject);
+            grid[cell.x, cell.y, cell.z] = null;
+            clearedBlocks++;
+        }
+
+        return clearedBlocks;
+    }
+
+    private int ClearWorldLayer(int y, List<ClearBlockFragment> clearedBlocksForEffects)
+    {
+        int clearedBlocks = 0;
+
         for (int x = 0; x < BoardWidth; x++)
         {
             for (int z = 0; z < BoardDepth; z++)
@@ -1098,12 +1712,53 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 Transform block = grid[x, y, z];
                 if (block != null)
                 {
+                    clearedBlocksForEffects.Add(new ClearBlockFragment(block.position, GetBlockColor(block)));
                     Destroy(block.gameObject);
+                    clearedBlocks++;
                 }
 
                 grid[x, y, z] = null;
             }
         }
+
+        return clearedBlocks;
+    }
+
+    private Color GetBlockColor(Transform block)
+    {
+        Renderer renderer = block.GetComponent<Renderer>();
+        if (renderer == null)
+        {
+            renderer = block.GetComponentInChildren<Renderer>();
+        }
+
+        if (renderer == null || renderer.sharedMaterial == null)
+        {
+            return clearFallbackFragmentColor;
+        }
+
+        Material material = renderer.sharedMaterial;
+        Color blockColor = clearFallbackFragmentColor;
+        if (material.HasProperty("_Color"))
+        {
+            blockColor = material.GetColor("_Color");
+        }
+        else if (material.HasProperty("_BaseColor"))
+        {
+            blockColor = material.GetColor("_BaseColor");
+        }
+
+        blockColor.a = 1f;
+        return blockColor;
+    }
+
+    private Color MakeFragmentColor(Color blockColor, float whiteMix, float alpha)
+    {
+        Color color = whiteMix >= 0f
+            ? Color.Lerp(blockColor, Color.white, whiteMix)
+            : Color.Lerp(blockColor, Color.black, -whiteMix);
+        color.a = alpha;
+        return color;
     }
 
     private void CollapseWorldAbove(int clearedY)
@@ -1127,6 +1782,49 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
     }
 
+    private void CollapseColumnsAboveClearedCells(List<Vector3Int> clearedCells)
+    {
+        Dictionary<Vector2Int, List<int>> clearedYByColumn = new Dictionary<Vector2Int, List<int>>();
+        for (int i = 0; i < clearedCells.Count; i++)
+        {
+            Vector3Int cell = clearedCells[i];
+            Vector2Int column = new Vector2Int(cell.x, cell.z);
+            if (!clearedYByColumn.TryGetValue(column, out List<int> clearedYs))
+            {
+                clearedYs = new List<int>();
+                clearedYByColumn.Add(column, clearedYs);
+            }
+
+            clearedYs.Add(cell.y);
+        }
+
+        foreach (KeyValuePair<Vector2Int, List<int>> column in clearedYByColumn)
+        {
+            List<int> clearedYs = column.Value;
+            clearedYs.Sort();
+            for (int i = 0; i < clearedYs.Count; i++)
+            {
+                int adjustedY = clearedYs[i] - i;
+                CollapseColumnAbove(column.Key.x, column.Key.y, adjustedY);
+            }
+        }
+    }
+
+    private void CollapseColumnAbove(int x, int z, int clearedY)
+    {
+        for (int above = clearedY + 1; above < BoardHeight; above++)
+        {
+            Transform block = grid[x, above, z];
+            grid[x, above - 1, z] = block;
+            if (block != null)
+            {
+                block.localPosition = GridToLocal(x, above - 1, z);
+            }
+
+            grid[x, above, z] = null;
+        }
+    }
+
     private bool IsValid(Vector3Int origin, Vector3Int[] cells)
     {
         for (int i = 0; i < cells.Length; i++)
@@ -1140,13 +1838,24 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 return false;
             }
 
-            if (IsProjectedOccupied(x, y))
+            if (IsBuildBlocked(x, y))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private bool IsBuildBlocked(int x, int y)
+    {
+        return IsPreviewHeld() ? IsExactBoardCellOccupied(x, y) : IsProjectedOccupied(x, y);
+    }
+
+    private bool IsExactBoardCellOccupied(int viewX, int y)
+    {
+        Vector3Int boardCell = ViewToBoardCell(viewX, y, FrontLayer);
+        return grid[boardCell.x, boardCell.y, boardCell.z] != null;
     }
 
     private float GetFallInterval()
@@ -1180,7 +1889,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
     private Vector3 ViewToLocal(int x, int y)
     {
-        return GridToLocal(x, y, FrontLayer);
+        Vector3Int cell = ViewToBoardCell(x, y, FrontLayer);
+        return GridToLocal(cell.x, cell.y, cell.z);
     }
 
     private Vector3Int ViewToBoardCell(int x, int y, int depth = 0)
@@ -1201,6 +1911,27 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private int WrapFace(int face)
     {
         return (face % 4 + 4) % 4;
+    }
+
+    private bool IsSideFace(int face)
+    {
+        int wrappedFace = WrapFace(face);
+        return wrappedFace == 1 || wrappedFace == 3;
+    }
+
+    private Vector3 GetFaceOutwardNormal(int face)
+    {
+        switch (WrapFace(face))
+        {
+            case 1:
+                return Vector3.right;
+            case 2:
+                return Vector3.forward;
+            case 3:
+                return Vector3.left;
+            default:
+                return Vector3.back;
+        }
     }
 
     private Vector3Int[] CopyCells(Vector3Int[] source)
@@ -1272,6 +2003,41 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private Material MakeTransparentMaterial(string materialName, Color color, float metallic, float smoothness)
     {
         Material material = MakeMaterial(materialName, color, metallic, smoothness);
+        ConfigureTransparentMaterial(material, color);
+        return material;
+    }
+
+    private Material MakeClearFragmentMaterial(Color color)
+    {
+        Material material = clearEffectMaterial != null
+            ? new Material(clearEffectMaterial)
+            : MakeTransparentMaterial("Clear Block Fragment", color, 0.02f, 0.45f);
+        material.name = "Clear Block Fragment Instance";
+        ConfigureTransparentMaterial(material, color);
+        return material;
+    }
+
+    private bool IsOldParticleMaterial(Material material)
+    {
+        return material != null && material.shader != null && material.shader.name.Contains("Particle");
+    }
+
+    private void ConfigureTransparentMaterial(Material material, Color color)
+    {
+        if (material == null)
+        {
+            return;
+        }
+
+        if (material.HasProperty("_Color"))
+        {
+            material.SetColor("_Color", color);
+        }
+
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", color);
+        }
 
         if (material.HasProperty("_Mode"))
         {
@@ -1284,8 +2050,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             material.renderQueue = 3000;
         }
-
-        return material;
     }
 
     private void ClearChildren(Transform parent)
@@ -1338,19 +2102,45 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
     }
 
-    private struct ClearEffect
+    private struct ClearBlockFragment
+    {
+        public readonly Vector3 Position;
+        public readonly Color Color;
+
+        public ClearBlockFragment(Vector3 position, Color color)
+        {
+            Position = position;
+            Color = color;
+        }
+    }
+
+    private struct ClearFragmentEffect
     {
         public readonly Transform Transform;
         public readonly Material Material;
         public readonly float Duration;
+        public readonly Color Color;
+        public readonly Vector3 StartScale;
+        public Vector3 Velocity;
+        public Vector3 AngularVelocity;
         public float Age;
 
-        public ClearEffect(Transform transform, Material material, float duration)
+        public ClearFragmentEffect(Transform transform, Material material, Vector3 velocity, Vector3 angularVelocity, float duration, Color color, Vector3 startScale)
         {
             Transform = transform;
             Material = material;
+            Velocity = velocity;
+            AngularVelocity = angularVelocity;
             Duration = duration;
+            Color = color;
+            StartScale = startScale;
             Age = 0f;
         }
+    }
+
+    private struct ClearResult
+    {
+        public int Rows;
+        public int Blocks;
     }
 }
