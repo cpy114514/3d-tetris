@@ -1151,7 +1151,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 350, y: -150}
-  m_SizeDelta: {x: 600, y: 241.7241}
+  m_SizeDelta: {x: 500, y: 200}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &392462083
 MonoBehaviour:
@@ -3911,8 +3911,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 300, y: -0.0029297}
-  m_SizeDelta: {x: 600, y: 241.73}
+  m_AnchoredPosition: {x: 250, y: 0.0005188}
+  m_SizeDelta: {x: 500, y: 200}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1606647541
 MonoBehaviour:
@@ -3940,8 +3940,8 @@ MonoBehaviour:
     m_FontStyle: 1
     m_BestFit: 1
     m_MinSize: 0
-    m_MaxSize: 150
-    m_Alignment: 3
+    m_MaxSize: 120
+    m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
@@ -4585,7 +4585,6 @@ MonoBehaviour:
   previewLookAtLift: 1.35
   previewCameraSpeed: 7
   previewCameraOrthographicSize: 5.8
-  previewClearColumnTolerance: 0.08
   nextPreviewViewportPosition: {x: 0.82, y: 0.68}
   nextPreviewCameraDepth: 12
   nextPreviewCellSpacing: 0.75

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public sealed class ThreeDTetrisGame : MonoBehaviour
@@ -61,7 +62,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField, Min(0f)] private float previewLookAtLift = 1.35f;
     [SerializeField, Min(0.1f)] private float previewCameraSpeed = 7f;
     [SerializeField, Min(1f)] private float previewCameraOrthographicSize = 5.8f;
-    [SerializeField, Min(0.01f), InspectorName("Preview Projection Column Tolerance")] private float previewClearColumnTolerance = 0.08f;
 
     [Header("Next Preview")]
     [SerializeField] private Vector2 nextPreviewViewportPosition = new Vector2(0.82f, 0.68f);
@@ -139,7 +139,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private float PreviewLookAtLift => Mathf.Max(0f, previewLookAtLift);
     private float PreviewCameraSpeed => Mathf.Max(0.1f, previewCameraSpeed);
     private float PreviewCameraOrthographicSize => Mathf.Max(1f, previewCameraOrthographicSize);
-    private float PreviewClearColumnTolerance => Mathf.Max(0.01f, previewClearColumnTolerance);
     private float NextPreviewCameraDepth => Mathf.Max(0.1f, nextPreviewCameraDepth);
     private float NextPreviewCellSpacing => Mathf.Max(0.1f, nextPreviewCellSpacing);
     private float NextPreviewCubeSize => Mathf.Max(0.1f, nextPreviewCubeSize);
@@ -186,9 +185,13 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private int level;
     private int lockedPieces;
     private int activeFace;
+    private int pendingFace;
     private float fallTimer;
     private float viewYaw;
     private float targetViewYaw;
+    private float faceTurnStartYaw;
+    private float faceTurnTargetYaw;
+    private bool hasPendingFaceChange;
     private bool pieceFalling;
     private bool gameOver;
     private bool paused;
@@ -196,6 +199,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
+        if (SceneManager.GetActiveScene().name != "GamePlay")
+        {
+            return;
+        }
+
         if (FindObjectOfType<ThreeDTetrisGame>() != null)
         {
             return;
@@ -244,7 +252,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         previewLookAtLift = Mathf.Max(0f, previewLookAtLift);
         previewCameraSpeed = Mathf.Max(0.1f, previewCameraSpeed);
         previewCameraOrthographicSize = Mathf.Max(1f, previewCameraOrthographicSize);
-        previewClearColumnTolerance = Mathf.Max(0.01f, previewClearColumnTolerance);
         nextPreviewViewportPosition.x = Mathf.Clamp01(nextPreviewViewportPosition.x);
         nextPreviewViewportPosition.y = Mathf.Clamp01(nextPreviewViewportPosition.y);
         nextPreviewCameraDepth = Mathf.Max(0.1f, nextPreviewCameraDepth);
@@ -322,10 +329,14 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             UpdateDeathWarning();
         }
 
+        bool previewHeld = IsPreviewHeld();
         if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.S))
         {
-            pieceFalling = true;
-            fallTimer = 0f;
+            if (!previewHeld)
+            {
+                pieceFalling = true;
+                fallTimer = 0f;
+            }
         }
 
         if (Input.GetKeyDown(KeyCode.A))
@@ -340,24 +351,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Q))
         {
-            targetViewYaw += ContainerTurnAngle;
-            activeFace = WrapFace(activeFace - 1);
-            TryClearSelectedFace();
-            RefreshActivePiece();
-            RefreshGhostPiece();
-            RefreshDeathWarningVisual();
-            UpdateDeathWarning();
+            QueueFaceTurn(-1, ContainerTurnAngle);
         }
 
         if (Input.GetKeyDown(KeyCode.E))
         {
-            targetViewYaw -= ContainerTurnAngle;
-            activeFace = WrapFace(activeFace + 1);
-            TryClearSelectedFace();
-            RefreshActivePiece();
-            RefreshGhostPiece();
-            RefreshDeathWarningVisual();
-            UpdateDeathWarning();
+            QueueFaceTurn(1, -ContainerTurnAngle);
         }
 
         if (Input.GetKeyDown(KeyCode.W))
@@ -367,6 +366,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (!pieceFalling)
         {
+            return;
+        }
+
+        if (previewHeld)
+        {
+            fallTimer = 0f;
             return;
         }
 
@@ -903,10 +908,52 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private void UpdateViewRotation()
     {
         viewYaw = Mathf.MoveTowardsAngle(viewYaw, targetViewYaw, ContainerTurnSpeed * Time.deltaTime);
+        UpdatePendingFaceChange();
+
         if (containerRoot != null)
         {
             containerRoot.localRotation = Quaternion.identity;
         }
+    }
+
+    private void QueueFaceTurn(int faceDelta, float yawDelta)
+    {
+        if (hasPendingFaceChange || Mathf.Abs(Mathf.DeltaAngle(viewYaw, targetViewYaw)) > 0.5f)
+        {
+            return;
+        }
+
+        pendingFace = WrapFace(activeFace + faceDelta);
+        faceTurnStartYaw = viewYaw;
+        faceTurnTargetYaw = targetViewYaw + yawDelta;
+        targetViewYaw = faceTurnTargetYaw;
+        hasPendingFaceChange = true;
+    }
+
+    private void UpdatePendingFaceChange()
+    {
+        if (!hasPendingFaceChange)
+        {
+            return;
+        }
+
+        float totalAngle = Mathf.Abs(Mathf.DeltaAngle(faceTurnStartYaw, faceTurnTargetYaw));
+        float remainingAngle = Mathf.Abs(Mathf.DeltaAngle(viewYaw, faceTurnTargetYaw));
+        if (totalAngle <= 0.01f || remainingAngle <= totalAngle * 0.5f)
+        {
+            ApplyPendingFaceChange();
+        }
+    }
+
+    private void ApplyPendingFaceChange()
+    {
+        activeFace = pendingFace;
+        hasPendingFaceChange = false;
+        TryClearSelectedFace();
+        RefreshActivePiece();
+        RefreshGhostPiece();
+        RefreshDeathWarningVisual();
+        UpdateDeathWarning();
     }
 
     private void UpdatePreviewCamera()
@@ -987,9 +1034,13 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         level = 1;
         lockedPieces = 0;
         activeFace = 0;
+        pendingFace = 0;
         fallTimer = 0f;
         viewYaw = 0f;
         targetViewYaw = 0f;
+        faceTurnStartYaw = 0f;
+        faceTurnTargetYaw = 0f;
+        hasPendingFaceChange = false;
         pieceFalling = false;
         gameOver = false;
         paused = false;
@@ -1167,6 +1218,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
     private bool DropOneLayer()
     {
+        if (IsPreviewHeld())
+        {
+            fallTimer = 0f;
+            return true;
+        }
+
         if (TryMove(Vector3Int.down))
         {
             return true;
@@ -1437,93 +1494,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         return true;
-    }
-
-    private bool IsPreviewProjectedRowFull(int y)
-    {
-        List<float> columns = GetPreviewProjectionColumns();
-        if (columns.Count == 0)
-        {
-            return false;
-        }
-
-        bool[] occupiedColumns = new bool[columns.Count];
-        Vector3 right = GetPreviewProjectionRight();
-        for (int x = 0; x < BoardWidth; x++)
-        {
-            for (int z = 0; z < BoardDepth; z++)
-            {
-                if (grid[x, y, z] == null)
-                {
-                    continue;
-                }
-
-                int column = FindPreviewProjectionColumn(columns, Vector3.Dot(GridToLocal(x, y, z), right));
-                if (column >= 0)
-                {
-                    occupiedColumns[column] = true;
-                }
-            }
-        }
-
-        for (int i = 0; i < occupiedColumns.Length; i++)
-        {
-            if (!occupiedColumns[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private List<float> GetPreviewProjectionColumns()
-    {
-        List<float> columns = new List<float>();
-        Vector3 right = GetPreviewProjectionRight();
-        for (int x = 0; x < BoardWidth; x++)
-        {
-            for (int z = 0; z < BoardDepth; z++)
-            {
-                AddPreviewProjectionColumn(columns, Vector3.Dot(GridToLocal(x, 0, z), right));
-            }
-        }
-
-        columns.Sort();
-        return columns;
-    }
-
-    private Vector3 GetPreviewProjectionRight()
-    {
-        float yaw = targetViewYaw + previewCameraYawOffset;
-        Vector3 position = GetCameraPosition(yaw, PreviewCameraHeight);
-        return GetCameraRotation(position, PreviewLookAtLift) * Vector3.right;
-    }
-
-    private void AddPreviewProjectionColumn(List<float> columns, float projection)
-    {
-        for (int i = 0; i < columns.Count; i++)
-        {
-            if (Mathf.Abs(columns[i] - projection) <= PreviewClearColumnTolerance)
-            {
-                return;
-            }
-        }
-
-        columns.Add(projection);
-    }
-
-    private int FindPreviewProjectionColumn(List<float> columns, float projection)
-    {
-        for (int i = 0; i < columns.Count; i++)
-        {
-            if (Mathf.Abs(columns[i] - projection) <= PreviewClearColumnTolerance)
-            {
-                return i;
-            }
-        }
-
-        return -1;
     }
 
     private void UpdateDeathWarning()

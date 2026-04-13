@@ -1,19 +1,15 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class MainMenu : MonoBehaviour
 {
-    [SerializeField] private string targetSceneName;
+    [SerializeField] private string targetSceneName = "GamePlay";
 
     public void StartGame()
     {
         if (string.IsNullOrEmpty(targetSceneName))
         {
-            Debug.LogError("no such scene");
+            Debug.LogError("Target scene is not set.");
             return;
         }
 
@@ -22,7 +18,7 @@ public class MainMenu : MonoBehaviour
 
     public void QuitGame()
     {
-        Debug.Log("exit");
+        Debug.Log("Quit game.");
         Application.Quit();
     }
 }
