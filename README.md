@@ -19,3 +19,8 @@ A Unity 2022 3D Tetris prototype using a 2D gameplay view inside a 3D cuboid wor
 ## Editing
 
 Open `GamePlay.unity`, select `Editable Cuboid Tetris`, and use the Inspector to edit board settings, materials, UI references, preview colors, and scene setup tools.
+
+
+
+Copyright © 2026 Your Name. All rights reserved.
+No permission is granted to copy, modify, distribute, or use this code.
