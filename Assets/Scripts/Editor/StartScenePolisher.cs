@@ -54,13 +54,12 @@ public static class StartScenePolisher
         UnityEventTools.AddPersistentListener(settingsButton.onClick, settingsMenu.OpenSettings);
         UnityEventTools.AddPersistentListener(quitButton.onClick, mainMenu.QuitGame);
 
-        RectTransform settingsPanel = CreatePanel("Settings Panel", canvas.transform, new Color(0.09f, 0.105f, 0.1f, 0.97f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(660f, 470f));
+        RectTransform settingsPanel = CreatePanel("Settings Panel", canvas.transform, new Color(0.09f, 0.105f, 0.1f, 0.97f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 620f));
         CreateText("Settings Title", settingsPanel, "SETTINGS", 46f, FontStyles.Bold, TextAlignmentOptions.Center, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -66f), new Vector2(560f, 70f));
-        CreateText("Volume Label", settingsPanel, "Volume", 24f, FontStyles.Bold, TextAlignmentOptions.Left, Color.white, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(86f, -142f), new Vector2(180f, 42f));
-        Slider volumeSlider = CreateSlider("Volume Slider", settingsPanel, new Vector2(0.5f, 1f), new Vector2(92f, -163f), new Vector2(330f, 32f));
-        Toggle fullscreenToggle = CreateToggle("Fullscreen Toggle", settingsPanel, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(-82f, -235f), new Vector2(430f, 48f));
-        CreateText("Settings Note", settingsPanel, "Resolution and quality use your current Unity/project defaults.", 20f, FontStyles.Normal, TextAlignmentOptions.Center, new Color(0.82f, 0.86f, 0.84f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -302f), new Vector2(560f, 56f));
-        Button backButton = CreateButton("Back Button", settingsPanel, "BACK", new Vector2(0.5f, 0f), new Vector2(0f, 64f), new Vector2(250f, 54f), new Color(0.28f, 0.33f, 0.31f), Color.white);
+        CreateText("Volume Label", settingsPanel, "Volume", 24f, FontStyles.Bold, TextAlignmentOptions.Left, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -130f), new Vector2(180f, 36f));
+        Slider volumeSlider = CreateSlider("Volume Slider", settingsPanel, new Vector2(0.5f, 1f), new Vector2(80f, -130f), new Vector2(300f, 32f));
+        Toggle fullscreenToggle = CreateToggle("Fullscreen Toggle", settingsPanel, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(0f, -195f), new Vector2(360f, 44f));
+        Button backButton = CreateButton("Settings Back Button", settingsPanel, "BACK", new Vector2(0.5f, 0f), new Vector2(0f, 74f), new Vector2(260f, 52f), new Color(0.28f, 0.33f, 0.31f), Color.white);
         UnityEventTools.AddPersistentListener(backButton.onClick, settingsMenu.CloseSettings);
 
         SerializedObject mainMenuObject = new SerializedObject(mainMenu);
@@ -71,8 +70,7 @@ public static class StartScenePolisher
         settingsObject.FindProperty("settingsPanel").objectReferenceValue = settingsPanel.gameObject;
         settingsObject.FindProperty("volumeSlider").objectReferenceValue = volumeSlider;
         settingsObject.FindProperty("fullscreenToggle").objectReferenceValue = fullscreenToggle;
-        settingsObject.FindProperty("resolutionDropdown").objectReferenceValue = null;
-        settingsObject.FindProperty("qualityDropdown").objectReferenceValue = null;
+        settingsObject.FindProperty("backButton").objectReferenceValue = backButton;
         settingsObject.ApplyModifiedPropertiesWithoutUndo();
         settingsPanel.gameObject.SetActive(false);
 

@@ -8,6 +8,7 @@ using UnityEngine.UI;
 public sealed class ThreeDTetrisGame : MonoBehaviour
 {
     private const int FrontLayer = 0;
+    private const float DefaultColorGrayMix = 0.34f;
     private static readonly string[] FourPointLightNames =
     {
         "Tetris Front Left Light",
@@ -41,20 +42,20 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField, Min(0.1f)] private float fourPointLightRange = 18f;
     [SerializeField, Min(0f)] private float fourPointLightHeight = 5.6f;
     [SerializeField, Min(0f)] private float fourPointLightDistance = 5.8f;
-    [SerializeField] private Color frontLeftLightColor = new Color(1f, 0.92f, 0.82f);
-    [SerializeField] private Color frontRightLightColor = new Color(0.74f, 0.86f, 1f);
-    [SerializeField] private Color backLeftLightColor = new Color(0.72f, 1f, 0.88f);
-    [SerializeField] private Color backRightLightColor = new Color(1f, 0.78f, 0.9f);
+    [SerializeField] private Color frontLeftLightColor = new Color(0.94f, 0.9f, 0.84f);
+    [SerializeField] private Color frontRightLightColor = new Color(0.78f, 0.85f, 0.94f);
+    [SerializeField] private Color backLeftLightColor = new Color(0.77f, 0.92f, 0.85f);
+    [SerializeField] private Color backRightLightColor = new Color(0.94f, 0.82f, 0.88f);
 
     [Header("View Rotation")]
     [SerializeField, InspectorName("View Turn Angle")] private float containerTurnAngle = 90f;
     [SerializeField, Min(1f), InspectorName("View Turn Speed")] private float containerTurnSpeed = 280f;
 
     [Header("Camera View")]
-    [SerializeField, Min(1f)] private float cameraDistance = 24f;
+    [SerializeField, Min(1f)] private float cameraDistance = 32f;
     [SerializeField, Min(0f)] private float cameraHeight = 0f;
     [SerializeField, Min(0f)] private float cameraLookAtHeight = 0f;
-    [SerializeField, Min(1f)] private float cameraOrthographicSize = 4.9f;
+    [SerializeField, Min(1f)] private float cameraOrthographicSize = 6.2f;
 
     [Header("F Preview")]
     [SerializeField] private float previewCameraYawOffset = 45f;
@@ -70,6 +71,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField, Min(0.1f)] private float nextPreviewCubeSize = 0.65f;
 
     [Header("Preview And Effects")]
+    [SerializeField, Range(0f, 0.8f)] private float colorGrayMix = DefaultColorGrayMix;
     [SerializeField, Range(0f, 1f)] private float ghostAlpha = 0.28f;
     [SerializeField] private Color ghostPreviewColor = new Color(0.9f, 0.92f, 0.94f);
     [SerializeField] private Color nextPreviewColor = new Color(0.82f, 0.84f, 0.86f);
@@ -79,7 +81,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField, Min(0.1f)] private float clearFragmentBlastSpeed = 3.8f;
     [SerializeField, Min(0f)] private float clearFragmentGravity = 0.95f;
     [SerializeField, Min(0f)] private float clearFragmentDrag = 0.32f;
-    [SerializeField] private Color clearFallbackFragmentColor = new Color(1f, 0.92f, 0.2f, 1f);
+    [SerializeField] private Color clearFallbackFragmentColor = new Color(0.88f, 0.82f, 0.44f, 1f);
 
     [Header("Editable 3D References")]
     [SerializeField] private GameObject cubePrefab;
@@ -112,6 +114,22 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField] private Button restartButton;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private Text pauseText;
+    [SerializeField] private Button resumeButton;
+    [SerializeField] private Button pauseRestartButton;
+    [SerializeField] private Button pauseSettingsButton;
+    [SerializeField] private Button mainMenuButton;
+    [SerializeField] private GameObject settingsPanel;
+    [SerializeField] private Slider volumeSlider;
+    [SerializeField] private Toggle fullscreenToggle;
+    [SerializeField] private Text resolutionValueText;
+    [SerializeField] private Button previousResolutionButton;
+    [SerializeField] private Button nextResolutionButton;
+    [SerializeField] private Button autoResolutionButton;
+    [SerializeField] private Text qualityValueText;
+    [SerializeField] private Button previousQualityButton;
+    [SerializeField] private Button nextQualityButton;
+    [SerializeField] private Button autoQualityButton;
+    [SerializeField] private Button settingsBackButton;
 
     private int BoardWidth => Mathf.Max(3, boardSide);
     private int BoardDepth => Mathf.Max(3, boardSide);
@@ -155,16 +173,18 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         new Vector3Int(0, 0, 0),
         new Vector3Int(-1, 0, 0),
         new Vector3Int(1, 0, 0),
-        new Vector3Int(0, -1, 0),
-        new Vector3Int(0, 1, 0),
         new Vector3Int(-2, 0, 0),
         new Vector3Int(2, 0, 0),
-        new Vector3Int(0, -2, 0),
-        new Vector3Int(0, 2, 0),
         new Vector3Int(-3, 0, 0),
         new Vector3Int(3, 0, 0),
-        new Vector3Int(0, -3, 0),
-        new Vector3Int(0, 3, 0)
+        new Vector3Int(-1, 1, 0),
+        new Vector3Int(1, 1, 0),
+        new Vector3Int(-2, 1, 0),
+        new Vector3Int(2, 1, 0),
+        new Vector3Int(-1, -1, 0),
+        new Vector3Int(1, -1, 0),
+        new Vector3Int(0, 1, 0),
+        new Vector3Int(0, -1, 0)
     };
 
     private Transform deathWarningBar;
@@ -195,6 +215,10 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private bool pieceFalling;
     private bool gameOver;
     private bool paused;
+    private bool settingsOpen;
+    private Resolution[] availableResolutions;
+    private int selectedResolutionIndex;
+    private int selectedQualityIndex;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -311,10 +335,9 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.P))
+        if (Input.GetKeyDown(KeyCode.Escape))
         {
-            paused = !paused;
-            UpdateUi();
+            TogglePause();
         }
 
         if (paused || gameOver)
@@ -404,6 +427,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         {
             gameOverRedBar = CreateUiImage("Game Over Red Bar", gameCanvas.transform, new Color(0.78f, 0.03f, 0.04f, 0.92f), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, -70f), new Vector2(0f, 70f));
         }
+        gameOverRedBar.color = MutedColor(new Color(0.78f, 0.03f, 0.04f, 0.92f));
 
         if (gameOverText == null)
         {
@@ -425,22 +449,518 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         {
             restartButton = CreateUiButton("Restart Button", gameOverPanel.transform, "RESTART", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(190f, 42f));
         }
+        ApplyButtonColor(restartButton, new Color(0.86f, 0.18f, 0.16f, 1f));
 
         restartButton.onClick.RemoveListener(ResetGame);
         restartButton.onClick.AddListener(ResetGame);
 
         if (pausePanel == null)
         {
-            Image panel = CreateUiImage("Pause Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.72f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 150f));
+            Image panel = CreateUiImage("Pause Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.78f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 520f));
             pausePanel = panel.gameObject;
+        }
+        else
+        {
+            RectTransform pauseRect = pausePanel.GetComponent<RectTransform>();
+            if (pauseRect != null)
+            {
+                pauseRect.sizeDelta = new Vector2(460f, 520f);
+            }
         }
 
         if (pauseText == null)
         {
-            pauseText = CreateUiText("Pause Text", pausePanel.transform, "PAUSED\nPress P to resume", 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+            pauseText = CreateUiText("Pause Text", pausePanel.transform, "PAUSED", 38, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(360f, 60f));
+        }
+        pauseText.text = "PAUSED";
+        RectTransform pauseTextRect = pauseText.GetComponent<RectTransform>();
+        if (pauseTextRect != null)
+        {
+            pauseTextRect.anchorMin = new Vector2(0.5f, 1f);
+            pauseTextRect.anchorMax = new Vector2(0.5f, 1f);
+            pauseTextRect.anchoredPosition = new Vector2(0f, -62f);
+            pauseTextRect.sizeDelta = new Vector2(360f, 60f);
         }
 
+        if (resumeButton == null)
+        {
+            resumeButton = CreateUiButton("Resume Button", pausePanel.transform, "RESUME", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -140f), new Vector2(280f, 52f));
+        }
+        ApplyButtonColor(resumeButton, new Color(0.13f, 0.68f, 0.44f, 1f));
+
+        if (pauseRestartButton == null)
+        {
+            pauseRestartButton = CreateUiButton("Pause Restart Button", pausePanel.transform, "RESTART", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -210f), new Vector2(280f, 52f));
+        }
+        ApplyButtonColor(pauseRestartButton, new Color(0.9f, 0.36f, 0.18f, 1f));
+
+        if (pauseSettingsButton == null)
+        {
+            pauseSettingsButton = CreateUiButton("Pause Settings Button", pausePanel.transform, "SETTINGS", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(280f, 52f));
+        }
+        ApplyButtonColor(pauseSettingsButton, new Color(0.18f, 0.48f, 0.86f, 1f));
+
+        if (mainMenuButton == null)
+        {
+            mainMenuButton = CreateUiButton("Main Menu Button", pausePanel.transform, "MAIN MENU", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -350f), new Vector2(280f, 52f));
+        }
+        ApplyButtonColor(mainMenuButton, new Color(0.58f, 0.42f, 0.84f, 1f));
+
+        WirePauseButtons();
+        SetupSettingsPanel();
+
         UpdateUi();
+    }
+
+    private void WirePauseButtons()
+    {
+        if (resumeButton != null)
+        {
+            resumeButton.onClick.RemoveListener(ResumeGame);
+            resumeButton.onClick.AddListener(ResumeGame);
+        }
+
+        if (pauseRestartButton != null)
+        {
+            pauseRestartButton.onClick.RemoveListener(RestartFromPauseMenu);
+            pauseRestartButton.onClick.AddListener(RestartFromPauseMenu);
+        }
+
+        if (pauseSettingsButton != null)
+        {
+            pauseSettingsButton.onClick.RemoveListener(OpenSettingsPanel);
+            pauseSettingsButton.onClick.AddListener(OpenSettingsPanel);
+        }
+
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.onClick.RemoveListener(ReturnToStartScene);
+            mainMenuButton.onClick.AddListener(ReturnToStartScene);
+        }
+    }
+
+    private void SetupSettingsPanel()
+    {
+        if (settingsPanel == null)
+        {
+            Image panel = CreateUiImage("Settings Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.84f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 620f));
+            settingsPanel = panel.gameObject;
+        }
+        else
+        {
+            RectTransform settingsRect = settingsPanel.GetComponent<RectTransform>();
+            if (settingsRect != null)
+            {
+                settingsRect.sizeDelta = new Vector2(640f, 620f);
+            }
+        }
+
+        if (settingsPanel.transform.Find("Settings Title") == null)
+        {
+            CreateUiText("Settings Title", settingsPanel.transform, "SETTINGS", 36, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -56f), new Vector2(500f, 54f));
+        }
+
+        Transform volumeLabel = settingsPanel.transform.Find("Volume Label");
+        if (volumeLabel == null)
+        {
+            volumeLabel = CreateUiText("Volume Label", settingsPanel.transform, "Volume", 22, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -122f), new Vector2(180f, 36f)).transform;
+        }
+        SetUiRect(volumeLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -122f), new Vector2(180f, 36f));
+
+        if (volumeSlider == null)
+        {
+            volumeSlider = CreateUiSlider("Volume Slider", settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(80f, -122f), new Vector2(300f, 32f));
+        }
+        SetUiRect(volumeSlider, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -122f), new Vector2(300f, 32f));
+
+        if (fullscreenToggle == null)
+        {
+            fullscreenToggle = CreateUiToggle("Fullscreen Toggle", settingsPanel.transform, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(0f, -184f), new Vector2(360f, 44f));
+        }
+        SetUiRect(fullscreenToggle, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -184f), new Vector2(360f, 44f));
+
+        HideUiObject(settingsPanel.transform.Find("Resolution Label"));
+
+        if (previousResolutionButton == null)
+        {
+            previousResolutionButton = CreateUiButton("Previous Resolution Button", settingsPanel.transform, "<", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-72f, -260f), new Vector2(48f, 42f));
+        }
+        HideButtonObject(previousResolutionButton);
+
+        if (resolutionValueText == null)
+        {
+            resolutionValueText = CreateUiText("Resolution Value", settingsPanel.transform, "", 20, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -260f), new Vector2(230f, 42f));
+        }
+        SetUiRect(resolutionValueText, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(86f, -260f), new Vector2(300f, 42f));
+        HideUiObject(resolutionValueText);
+
+        if (nextResolutionButton == null)
+        {
+            nextResolutionButton = CreateUiButton("Next Resolution Button", settingsPanel.transform, ">", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(232f, -260f), new Vector2(48f, 42f));
+        }
+        HideButtonObject(nextResolutionButton);
+
+        HideButtonObject(autoResolutionButton);
+
+        HideUiObject(settingsPanel.transform.Find("Quality Label"));
+
+        if (previousQualityButton == null)
+        {
+            previousQualityButton = CreateUiButton("Previous Quality Button", settingsPanel.transform, "<", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-72f, -340f), new Vector2(48f, 42f));
+        }
+        HideButtonObject(previousQualityButton);
+
+        if (qualityValueText == null)
+        {
+            qualityValueText = CreateUiText("Quality Value", settingsPanel.transform, "", 20, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -340f), new Vector2(230f, 42f));
+        }
+        SetUiRect(qualityValueText, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(86f, -340f), new Vector2(300f, 42f));
+        HideUiObject(qualityValueText);
+
+        if (nextQualityButton == null)
+        {
+            nextQualityButton = CreateUiButton("Next Quality Button", settingsPanel.transform, ">", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(232f, -340f), new Vector2(48f, 42f));
+        }
+        HideButtonObject(nextQualityButton);
+
+        HideButtonObject(autoQualityButton);
+
+        if (settingsBackButton == null)
+        {
+            settingsBackButton = CreateUiButton("Settings Back Button", settingsPanel.transform, "BACK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 74f), new Vector2(260f, 52f));
+        }
+        ApplyButtonColor(settingsBackButton, new Color(0.34f, 0.38f, 0.42f, 1f));
+
+        WireSettingsButtons();
+        EnsureInitialAutoSettings();
+        RefreshSettingsControls();
+    }
+
+    private void WireSettingsButtons()
+    {
+        if (settingsBackButton != null)
+        {
+            settingsBackButton.onClick.RemoveListener(CloseSettingsPanel);
+            settingsBackButton.onClick.AddListener(CloseSettingsPanel);
+        }
+    }
+
+    private void TogglePause()
+    {
+        if (gameOver)
+        {
+            return;
+        }
+
+        if (!paused)
+        {
+            paused = true;
+            settingsOpen = false;
+            UpdateUi();
+            return;
+        }
+
+        if (settingsOpen)
+        {
+            CloseSettingsPanel();
+            return;
+        }
+
+        ResumeGame();
+    }
+
+    private void ResumeGame()
+    {
+        paused = false;
+        settingsOpen = false;
+        UpdateUi();
+    }
+
+    private void RestartFromPauseMenu()
+    {
+        settingsOpen = false;
+        paused = false;
+        ResetGame();
+    }
+
+    private void OpenSettingsPanel()
+    {
+        settingsOpen = true;
+        RefreshSettingsControls();
+        UpdateUi();
+    }
+
+    private void CloseSettingsPanel()
+    {
+        settingsOpen = false;
+        UpdateUi();
+    }
+
+    private void ReturnToStartScene()
+    {
+        SceneManager.LoadScene("Start");
+    }
+
+    private void EnsureInitialAutoSettings()
+    {
+        if (PlayerPrefs.GetInt("AutoSettingsInitialized", 0) == 1)
+        {
+            return;
+        }
+
+        RefreshResolutionOptions(false);
+        ApplyAutoResolution();
+        ApplyAutoQuality();
+        PlayerPrefs.SetInt("AutoSettingsInitialized", 1);
+        PlayerPrefs.Save();
+    }
+
+    private void RefreshSettingsControls()
+    {
+        if (volumeSlider != null)
+        {
+            volumeSlider.onValueChanged.RemoveListener(SetVolume);
+            volumeSlider.value = PlayerPrefs.GetFloat("MasterVolume", AudioListener.volume);
+            volumeSlider.onValueChanged.AddListener(SetVolume);
+            AudioListener.volume = volumeSlider.value;
+        }
+
+        if (fullscreenToggle != null)
+        {
+            fullscreenToggle.onValueChanged.RemoveListener(SetFullscreen);
+            fullscreenToggle.isOn = PlayerPrefs.GetInt("Fullscreen", Screen.fullScreen ? 1 : 0) == 1;
+            fullscreenToggle.onValueChanged.AddListener(SetFullscreen);
+            Screen.fullScreen = fullscreenToggle.isOn;
+        }
+
+        RefreshResolutionOptions(false);
+        RefreshQualityOptions(false);
+    }
+
+    private void RefreshResolutionOptions(bool keepSelection)
+    {
+        List<Resolution> uniqueResolutions = new List<Resolution>();
+        Resolution[] screenResolutions = Screen.resolutions;
+        for (int i = 0; i < screenResolutions.Length; i++)
+        {
+            Resolution resolution = screenResolutions[i];
+            bool exists = false;
+            for (int existing = 0; existing < uniqueResolutions.Count; existing++)
+            {
+                if (uniqueResolutions[existing].width == resolution.width && uniqueResolutions[existing].height == resolution.height)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists)
+            {
+                uniqueResolutions.Add(resolution);
+            }
+        }
+
+        if (uniqueResolutions.Count == 0)
+        {
+            Resolution current = Screen.currentResolution;
+            uniqueResolutions.Add(current);
+        }
+
+        availableResolutions = uniqueResolutions.ToArray();
+        if (keepSelection)
+        {
+            selectedResolutionIndex = Mathf.Clamp(selectedResolutionIndex, 0, availableResolutions.Length - 1);
+            UpdateResolutionText();
+            return;
+        }
+
+        int currentIndex = 0;
+        for (int i = 0; i < availableResolutions.Length; i++)
+        {
+            if (availableResolutions[i].width == Screen.currentResolution.width && availableResolutions[i].height == Screen.currentResolution.height)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        selectedResolutionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ResolutionIndex", currentIndex), 0, availableResolutions.Length - 1);
+        UpdateResolutionText();
+    }
+
+    private void RefreshQualityOptions(bool keepSelection)
+    {
+        if (QualitySettings.names.Length == 0)
+        {
+            selectedQualityIndex = 0;
+            UpdateQualityText();
+            return;
+        }
+
+        if (keepSelection)
+        {
+            selectedQualityIndex = Mathf.Clamp(selectedQualityIndex, 0, QualitySettings.names.Length - 1);
+            UpdateQualityText();
+            return;
+        }
+
+        selectedQualityIndex = Mathf.Clamp(PlayerPrefs.GetInt("QualityLevel", QualitySettings.GetQualityLevel()), 0, QualitySettings.names.Length - 1);
+        QualitySettings.SetQualityLevel(selectedQualityIndex, true);
+        UpdateQualityText();
+    }
+
+    private void SetVolume(float value)
+    {
+        AudioListener.volume = value;
+        PlayerPrefs.SetFloat("MasterVolume", value);
+        PlayerPrefs.Save();
+    }
+
+    private void SetFullscreen(bool isFullscreen)
+    {
+        Screen.fullScreen = isFullscreen;
+        PlayerPrefs.SetInt("Fullscreen", isFullscreen ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+
+    private void PreviousResolution()
+    {
+        SetResolutionIndex(selectedResolutionIndex - 1, true);
+    }
+
+    private void NextResolution()
+    {
+        SetResolutionIndex(selectedResolutionIndex + 1, true);
+    }
+
+    private void ApplyAutoResolution()
+    {
+        RefreshResolutionOptions(true);
+        if (availableResolutions == null || availableResolutions.Length == 0)
+        {
+            return;
+        }
+
+        Resolution nativeResolution = Screen.currentResolution;
+        int bestIndex = 0;
+        int bestDelta = int.MaxValue;
+        for (int i = 0; i < availableResolutions.Length; i++)
+        {
+            int delta = Mathf.Abs(availableResolutions[i].width - nativeResolution.width) + Mathf.Abs(availableResolutions[i].height - nativeResolution.height);
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                bestIndex = i;
+            }
+        }
+
+        SetResolutionIndex(bestIndex, true);
+    }
+
+    private void SetResolutionIndex(int index, bool apply)
+    {
+        if (availableResolutions == null || availableResolutions.Length == 0)
+        {
+            RefreshResolutionOptions(false);
+        }
+
+        if (availableResolutions == null || availableResolutions.Length == 0)
+        {
+            return;
+        }
+
+        selectedResolutionIndex = (index % availableResolutions.Length + availableResolutions.Length) % availableResolutions.Length;
+        Resolution resolution = availableResolutions[selectedResolutionIndex];
+        if (apply)
+        {
+            Screen.SetResolution(resolution.width, resolution.height, Screen.fullScreen);
+            PlayerPrefs.SetInt("ResolutionIndex", selectedResolutionIndex);
+            PlayerPrefs.Save();
+        }
+
+        UpdateResolutionText();
+    }
+
+    private void UpdateResolutionText()
+    {
+        if (resolutionValueText == null)
+        {
+            return;
+        }
+
+        if (availableResolutions == null || availableResolutions.Length == 0)
+        {
+            resolutionValueText.text = "Auto";
+            return;
+        }
+
+        Resolution resolution = availableResolutions[Mathf.Clamp(selectedResolutionIndex, 0, availableResolutions.Length - 1)];
+        resolutionValueText.text = resolution.width + " x " + resolution.height;
+    }
+
+    private void PreviousQuality()
+    {
+        SetQualityIndex(selectedQualityIndex - 1, true);
+    }
+
+    private void NextQuality()
+    {
+        SetQualityIndex(selectedQualityIndex + 1, true);
+    }
+
+    private void ApplyAutoQuality()
+    {
+        SetQualityIndex(GetRecommendedQualityIndex(), true);
+    }
+
+    private void SetQualityIndex(int index, bool apply)
+    {
+        int qualityCount = QualitySettings.names.Length;
+        if (qualityCount <= 0)
+        {
+            selectedQualityIndex = 0;
+            UpdateQualityText();
+            return;
+        }
+
+        selectedQualityIndex = (index % qualityCount + qualityCount) % qualityCount;
+        if (apply)
+        {
+            QualitySettings.SetQualityLevel(selectedQualityIndex, true);
+            PlayerPrefs.SetInt("QualityLevel", selectedQualityIndex);
+            PlayerPrefs.Save();
+        }
+
+        UpdateQualityText();
+    }
+
+    private int GetRecommendedQualityIndex()
+    {
+        int qualityCount = QualitySettings.names.Length;
+        if (qualityCount <= 1)
+        {
+            return 0;
+        }
+
+        int performanceScore = SystemInfo.graphicsMemorySize / 512 + SystemInfo.systemMemorySize / 2048 + SystemInfo.processorCount;
+        float normalized = Mathf.InverseLerp(7f, 24f, performanceScore);
+        return Mathf.Clamp(Mathf.RoundToInt(normalized * (qualityCount - 1)), 0, qualityCount - 1);
+    }
+
+    private void UpdateQualityText()
+    {
+        if (qualityValueText == null)
+        {
+            return;
+        }
+
+        if (QualitySettings.names.Length == 0)
+        {
+            qualityValueText.text = "Default";
+            return;
+        }
+
+        qualityValueText.text = QualitySettings.names[Mathf.Clamp(selectedQualityIndex, 0, QualitySettings.names.Length - 1)];
     }
 
     private void UpdateUi()
@@ -467,7 +987,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (pausePanel != null)
         {
-            pausePanel.SetActive(paused && !gameOver);
+            pausePanel.SetActive(paused && !gameOver && !settingsOpen);
+        }
+
+        if (settingsPanel != null)
+        {
+            settingsPanel.SetActive(paused && !gameOver && settingsOpen);
         }
     }
 
@@ -535,8 +1060,69 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         rectTransform.sizeDelta = sizeDelta;
 
         Image image = imageObject.GetComponent<Image>();
-        image.color = color;
+        image.color = MutedColor(color);
         return image;
+    }
+
+    private void SetUiRect(Component component, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        if (component == null)
+        {
+            return;
+        }
+
+        SetUiRect(component.transform, anchorMin, anchorMax, anchoredPosition, sizeDelta);
+    }
+
+    private void SetUiRect(Transform transform, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        if (transform == null)
+        {
+            return;
+        }
+
+        RectTransform rectTransform = transform.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            return;
+        }
+
+        rectTransform.anchorMin = anchorMin;
+        rectTransform.anchorMax = anchorMax;
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.anchoredPosition = anchoredPosition;
+        rectTransform.sizeDelta = sizeDelta;
+    }
+
+    private void HideButtonObject(Button button)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        button.onClick.RemoveAllListeners();
+        button.gameObject.SetActive(false);
+    }
+
+    private void HideUiObject(Component component)
+    {
+        if (component == null)
+        {
+            return;
+        }
+
+        component.gameObject.SetActive(false);
+    }
+
+    private void HideUiObject(Transform transform)
+    {
+        if (transform == null)
+        {
+            return;
+        }
+
+        transform.gameObject.SetActive(false);
     }
 
     private Text CreateUiText(string objectName, Transform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, Color color, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
@@ -569,16 +1155,102 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
     private Button CreateUiButton(string objectName, Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
     {
-        Image image = CreateUiImage(objectName, parent, new Color(0.86f, 0.05f, 0.06f, 1f), anchorMin, anchorMax, anchoredPosition, sizeDelta);
+        Image image = CreateUiImage(objectName, parent, new Color(0.26f, 0.3f, 0.34f, 1f), anchorMin, anchorMax, anchoredPosition, sizeDelta);
         Button button = image.gameObject.AddComponent<Button>();
-        ColorBlock colors = button.colors;
-        colors.normalColor = new Color(0.86f, 0.05f, 0.06f, 1f);
-        colors.highlightedColor = new Color(1f, 0.14f, 0.14f, 1f);
-        colors.pressedColor = new Color(0.58f, 0f, 0.02f, 1f);
-        button.colors = colors;
+        ApplyButtonColor(button, image.color);
 
         CreateUiText("Label", image.transform, label, 22, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
         return button;
+    }
+
+    private void ApplyButtonColor(Button button, Color color)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        color = MutedColor(color);
+
+        Image image = button.targetGraphic as Image;
+        if (image == null)
+        {
+            image = button.GetComponent<Image>();
+            button.targetGraphic = image;
+        }
+
+        if (image != null)
+        {
+            image.color = color;
+        }
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = color;
+        colors.highlightedColor = Color.Lerp(color, Color.white, 0.18f);
+        colors.pressedColor = Color.Lerp(color, Color.black, 0.18f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.disabledColor = new Color(color.r, color.g, color.b, 0.42f);
+        button.colors = colors;
+    }
+
+    private Slider CreateUiSlider(string objectName, Transform parent, Vector2 anchor, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject sliderObject = new GameObject(objectName, typeof(RectTransform), typeof(Slider));
+        sliderObject.transform.SetParent(parent, false);
+        RectTransform sliderRect = sliderObject.GetComponent<RectTransform>();
+        sliderRect.anchorMin = anchor;
+        sliderRect.anchorMax = anchor;
+        sliderRect.anchoredPosition = anchoredPosition;
+        sliderRect.sizeDelta = sizeDelta;
+
+        Image background = CreateUiImage("Background", sliderObject.transform, new Color(0.18f, 0.2f, 0.2f, 1f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        background.raycastTarget = false;
+        RectTransform fillArea = CreateUiRect("Fill Area", sliderObject.transform, new Vector2(0f, 0.2f), new Vector2(1f, 0.8f), Vector2.zero, new Vector2(-24f, 0f));
+        Image fill = CreateUiImage("Fill", fillArea, new Color(0.13f, 0.78f, 0.62f, 1f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        RectTransform handleArea = CreateUiRect("Handle Slide Area", sliderObject.transform, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(-20f, 0f));
+        Image handle = CreateUiImage("Handle", handleArea, Color.white, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(24f, 36f));
+
+        Slider slider = sliderObject.GetComponent<Slider>();
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.value = 1f;
+        slider.fillRect = fill.rectTransform;
+        slider.handleRect = handle.rectTransform;
+        slider.targetGraphic = handle;
+        return slider;
+    }
+
+    private Toggle CreateUiToggle(string objectName, Transform parent, string label, Vector2 anchor, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject toggleObject = new GameObject(objectName, typeof(RectTransform), typeof(Toggle));
+        toggleObject.transform.SetParent(parent, false);
+        RectTransform toggleRect = toggleObject.GetComponent<RectTransform>();
+        toggleRect.anchorMin = anchor;
+        toggleRect.anchorMax = anchor;
+        toggleRect.anchoredPosition = anchoredPosition;
+        toggleRect.sizeDelta = sizeDelta;
+
+        Image box = CreateUiImage("Box", toggleObject.transform, new Color(0.18f, 0.2f, 0.2f, 1f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(28f, 0f), new Vector2(34f, 34f));
+        Image checkmark = CreateUiImage("Checkmark", box.transform, new Color(0.13f, 0.78f, 0.62f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 22f));
+        CreateUiText("Label", toggleObject.transform, label, 22, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(74f, 0f), new Vector2(-74f, 0f));
+
+        Toggle toggle = toggleObject.GetComponent<Toggle>();
+        toggle.targetGraphic = box;
+        toggle.graphic = checkmark;
+        toggle.isOn = true;
+        return toggle;
+    }
+
+    private RectTransform CreateUiRect(string objectName, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject rectObject = new GameObject(objectName, typeof(RectTransform));
+        rectObject.transform.SetParent(parent, false);
+        RectTransform rectTransform = rectObject.GetComponent<RectTransform>();
+        rectTransform.anchorMin = anchorMin;
+        rectTransform.anchorMax = anchorMax;
+        rectTransform.anchoredPosition = anchoredPosition;
+        rectTransform.sizeDelta = sizeDelta;
+        return rectTransform;
     }
 
     private void BuildPieceDefinitions()
@@ -595,47 +1267,79 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             new PieceDefinition("Z", new Color(1f, 0.18f, 0.18f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
             new PieceDefinition("J", new Color(0.22f, 0.42f, 1f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0)),
             new PieceDefinition("L", new Color(1f, 0.54f, 0.12f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(1, -1, 0)),
-            new PieceDefinition("P5", new Color(1f, 0.36f, 0.68f), 4, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("U5", new Color(0.26f, 1f, 0.66f), 4, new Vector3Int(-1, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
-            new PieceDefinition("V5", new Color(1f, 0.66f, 0.1f), 5, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0), new Vector3Int(2, -2, 0)),
-            new PieceDefinition("W5", new Color(0.55f, 1f, 0.25f), 5, new Vector3Int(-1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0)),
-            new PieceDefinition("X5", new Color(0.96f, 0.52f, 1f), 6, new Vector3Int(0, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("F5", new Color(0.12f, 0.78f, 1f), 6, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("C6", new Color(1f, 0.32f, 0.2f), 9, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(-1, -2, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("Y6", new Color(0.58f, 0.72f, 1f), 9, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(0, -3, 0), new Vector3Int(-1, -1, 0), new Vector3Int(1, -2, 0))
+            new PieceDefinition("P5", new Color(1f, 0.36f, 0.68f), 3, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("U5", new Color(0.26f, 1f, 0.66f), 3, new Vector3Int(-1, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
+            new PieceDefinition("V5", new Color(1f, 0.66f, 0.1f), 4, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0), new Vector3Int(2, -2, 0)),
+            new PieceDefinition("W5", new Color(0.55f, 1f, 0.25f), 4, new Vector3Int(-1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0)),
+            new PieceDefinition("N5", new Color(0.24f, 0.95f, 0.88f), 4, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(1, -2, 0)),
+            new PieceDefinition("T5", new Color(0.86f, 0.5f, 1f), 5, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("X5", new Color(0.96f, 0.52f, 1f), 5, new Vector3Int(0, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("F5", new Color(0.12f, 0.78f, 1f), 5, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("C6", new Color(1f, 0.32f, 0.2f), 7, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(-1, -2, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("Y6", new Color(0.58f, 0.72f, 1f), 7, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(0, -3, 0), new Vector3Int(-1, -1, 0), new Vector3Int(1, -2, 0))
         };
     }
 
     private void BuildMaterials()
     {
+        Color bodyColor = new Color(0.08f, 0.1f, 0.12f, 0.18f);
+        Color railColor = new Color(0.74f, 0.79f, 0.83f);
+        Color gridColor = new Color(1f, 1f, 1f, 0.18f);
+        Color ghostColor = new Color(ghostPreviewColor.r, ghostPreviewColor.g, ghostPreviewColor.b, GhostAlpha);
+        Color deathWarningColor = new Color(0.78f, 0.08f, 0.08f, 0f);
+
         if (bodyMaterial == null)
         {
-            bodyMaterial = MakeTransparentMaterial("Transparent Cuboid", new Color(0.08f, 0.1f, 0.12f, 0.18f), 0f, 0.18f);
+            bodyMaterial = MakeTransparentMaterial("Transparent Cuboid", bodyColor, 0f, 0.18f);
+        }
+        else
+        {
+            ConfigureTransparentMaterial(bodyMaterial, bodyColor);
         }
 
         if (railMaterial == null)
         {
-            railMaterial = MakeMaterial("Cuboid Rails", new Color(0.74f, 0.79f, 0.83f), 0.04f, 0.58f);
+            railMaterial = MakeMaterial("Cuboid Rails", railColor, 0.04f, 0.58f);
+        }
+        else
+        {
+            ApplyMaterialColor(railMaterial, railColor);
         }
 
         if (gridMaterial == null)
         {
-            gridMaterial = MakeTransparentMaterial("Cuboid Grid", new Color(1f, 1f, 1f, 0.18f), 0f, 0.18f);
+            gridMaterial = MakeTransparentMaterial("Cuboid Grid", gridColor, 0f, 0.18f);
+        }
+        else
+        {
+            ConfigureTransparentMaterial(gridMaterial, gridColor);
         }
 
         if (ghostMaterial == null)
         {
-            ghostMaterial = MakeTransparentMaterial("Ghost Piece", new Color(ghostPreviewColor.r, ghostPreviewColor.g, ghostPreviewColor.b, GhostAlpha), 0f, 0.2f);
+            ghostMaterial = MakeTransparentMaterial("Ghost Piece", ghostColor, 0f, 0.2f);
+        }
+        else
+        {
+            ConfigureTransparentMaterial(ghostMaterial, ghostColor);
         }
 
         if (nextPreviewMaterial == null)
         {
             nextPreviewMaterial = MakeMaterial("Next Preview", nextPreviewColor, 0.02f, 0.48f);
         }
+        else
+        {
+            ApplyMaterialColor(nextPreviewMaterial, nextPreviewColor);
+        }
 
         if (deathWarningMaterial == null)
         {
-            deathWarningMaterial = MakeTransparentMaterial("Death Warning", new Color(1f, 0f, 0f, 0f), 0f, 0.08f);
+            deathWarningMaterial = MakeTransparentMaterial("Death Warning", deathWarningColor, 0f, 0.08f);
+        }
+        else
+        {
+            ConfigureTransparentMaterial(deathWarningMaterial, deathWarningColor);
         }
 
         if (clearEffectMaterial == null || IsOldParticleMaterial(clearEffectMaterial))
@@ -804,7 +1508,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private void SetupLighting()
     {
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = ambientLightColor;
+        RenderSettings.ambientLight = MutedColor(ambientLightColor);
         RenderSettings.sun = null;
 
         DisableLegacyLights();
@@ -840,7 +1544,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         Light pointLight = GetOrCreatePointLight(lightName);
         pointLight.enabled = true;
         pointLight.type = LightType.Point;
-        pointLight.color = color;
+        pointLight.color = MutedColor(color);
         pointLight.intensity = FourPointLightIntensity;
         pointLight.range = FourPointLightRange;
         pointLight.shadows = LightShadows.None;
@@ -950,6 +1654,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         activeFace = pendingFace;
         hasPendingFaceChange = false;
         TryClearSelectedFace();
+        StickWaitingPieceToTop();
         RefreshActivePiece();
         RefreshGhostPiece();
         RefreshDeathWarningVisual();
@@ -1044,6 +1749,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         pieceFalling = false;
         gameOver = false;
         paused = false;
+        settingsOpen = false;
         nextPieceIndex = RandomPieceIndex();
 
         ApplyCameraTransform(0f, false, true);
@@ -1067,7 +1773,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         currentPieceIndex = nextPieceIndex;
         nextPieceIndex = RandomPieceIndex();
         currentCells = CopyCells(pieces[currentPieceIndex].Cells);
-        currentOrigin = new Vector3Int(BoardWidth / 2, BoardHeight - 1, FrontLayer);
+        currentOrigin = new Vector3Int(BoardWidth / 2, GetSpawnOriginY(currentCells), FrontLayer);
         pieceFalling = false;
         fallTimer = 0f;
 
@@ -1100,7 +1806,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     {
         ClearChildren(ghostRoot);
         ghostCubes = new Transform[currentCells.Length];
-        ghostMaterial.color = new Color(ghostPreviewColor.r, ghostPreviewColor.g, ghostPreviewColor.b, GhostAlpha);
+        ghostMaterial.color = MutedColor(new Color(ghostPreviewColor.r, ghostPreviewColor.g, ghostPreviewColor.b, GhostAlpha));
 
         for (int i = 0; i < currentCells.Length; i++)
         {
@@ -1178,6 +1884,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private bool TryMove(Vector3Int delta)
     {
         Vector3Int candidate = currentOrigin + delta;
+        if (!pieceFalling)
+        {
+            candidate = GetTopStuckOrigin(candidate, currentCells);
+        }
+
         if (!IsValid(candidate, currentCells))
         {
             return false;
@@ -1201,6 +1912,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         for (int i = 0; i < wallKicks.Length; i++)
         {
             Vector3Int candidateOrigin = currentOrigin + wallKicks[i];
+            if (!pieceFalling)
+            {
+                candidateOrigin = GetTopStuckOrigin(candidateOrigin, rotated);
+            }
+
             if (!IsValid(candidateOrigin, rotated))
             {
                 continue;
@@ -1229,12 +1945,29 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return true;
         }
 
+        if (HasAboveBoardCells(currentOrigin, currentCells))
+        {
+            gameOver = true;
+            pieceFalling = false;
+            RefreshNextPreview();
+            UpdateUi();
+            return false;
+        }
+
         LockPiece();
         return false;
     }
 
     private void LockPiece()
     {
+        if (HasAboveBoardCells(currentOrigin, currentCells))
+        {
+            gameOver = true;
+            pieceFalling = false;
+            UpdateUi();
+            return;
+        }
+
         for (int i = 0; i < currentCells.Length; i++)
         {
             Vector3Int viewCell = currentOrigin + currentCells[i];
@@ -1255,6 +1988,46 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         ApplyClearedRows(ClearFullRows());
 
         SpawnPiece();
+    }
+
+    private void StickWaitingPieceToTop()
+    {
+        if (pieceFalling || currentCells == null)
+        {
+            return;
+        }
+
+        currentOrigin = GetTopStuckOrigin(currentOrigin, currentCells);
+    }
+
+    private Vector3Int GetTopStuckOrigin(Vector3Int origin, Vector3Int[] cells)
+    {
+        origin.y = GetSpawnOriginY(cells);
+        return origin;
+    }
+
+    private int GetSpawnOriginY(Vector3Int[] cells)
+    {
+        int minY = 0;
+        for (int i = 0; i < cells.Length; i++)
+        {
+            minY = Mathf.Min(minY, cells[i].y);
+        }
+
+        return BoardHeight - minY;
+    }
+
+    private bool HasAboveBoardCells(Vector3Int origin, Vector3Int[] cells)
+    {
+        for (int i = 0; i < cells.Length; i++)
+        {
+            if (origin.y + cells[i].y >= BoardHeight)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void TryClearSelectedFace()
@@ -1337,20 +2110,20 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (cells == 5)
         {
-            return Mathf.Clamp(8 + age * 4, 8, 26);
+            return Mathf.Clamp(13 + age * 5, 13, 34);
         }
 
-        return Mathf.Clamp(3 + age * 2, 3, 12);
+        return Mathf.Clamp(5 + age * 3, 5, 18);
     }
 
     private string GetPieceComplexityLabel()
     {
-        if (level >= 9)
+        if (level >= 7)
         {
             return "Rare 6-block";
         }
 
-        if (level >= 4)
+        if (level >= 3)
         {
             return "Rare 5-block";
         }
@@ -1512,7 +2285,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         float alpha = Mathf.Lerp(0.09f, 0.38f, Mathf.PingPong(Time.time * 4f, 1f));
-        deathWarningMaterial.color = new Color(1f, 0f, 0f, alpha);
+        deathWarningMaterial.color = MutedColor(new Color(0.78f, 0.08f, 0.08f, alpha));
     }
 
     private void RefreshDeathWarningVisual()
@@ -1803,9 +2576,14 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             int y = origin.y + cells[i].y;
             int z = origin.z + cells[i].z;
 
-            if (x < 0 || x >= BoardWidth || y < 0 || y >= BoardHeight || z != FrontLayer)
+            if (x < 0 || x >= BoardWidth || y < 0 || z != FrontLayer)
             {
                 return false;
+            }
+
+            if (y >= BoardHeight)
+            {
+                continue;
             }
 
             if (IsBuildBlocked(x, y))
@@ -1943,6 +2721,21 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         return cube.transform;
     }
 
+    private Color MutedColor(Color color)
+    {
+        return MutedColor(color, colorGrayMix);
+    }
+
+    private static Color MutedColor(Color color, float grayMix)
+    {
+        float alpha = color.a;
+        float gray = color.grayscale;
+        Color grayColor = new Color(gray, gray, gray, alpha);
+        Color mutedColor = Color.Lerp(color, grayColor, Mathf.Clamp01(grayMix));
+        mutedColor.a = alpha;
+        return mutedColor;
+    }
+
     private Material MakeMaterial(string materialName, Color color, float metallic, float smoothness)
     {
         Shader shader = Shader.Find("Standard");
@@ -1954,8 +2747,10 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         Material material = new Material(shader)
         {
             name = materialName,
-            color = color
+            color = MutedColor(color)
         };
+
+        ApplyMaterialColor(material, color);
 
         if (material.HasProperty("_Metallic"))
         {
@@ -1968,6 +2763,27 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         return material;
+    }
+
+    private void ApplyMaterialColor(Material material, Color color)
+    {
+        if (material == null)
+        {
+            return;
+        }
+
+        Color mutedColor = MutedColor(color);
+        material.color = mutedColor;
+
+        if (material.HasProperty("_Color"))
+        {
+            material.SetColor("_Color", mutedColor);
+        }
+
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", mutedColor);
+        }
     }
 
     private Material MakeTransparentMaterial(string materialName, Color color, float metallic, float smoothness)
@@ -1999,14 +2815,17 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return;
         }
 
+        Color mutedColor = MutedColor(color);
+        material.color = mutedColor;
+
         if (material.HasProperty("_Color"))
         {
-            material.SetColor("_Color", color);
+            material.SetColor("_Color", mutedColor);
         }
 
         if (material.HasProperty("_BaseColor"))
         {
-            material.SetColor("_BaseColor", color);
+            material.SetColor("_BaseColor", mutedColor);
         }
 
         if (material.HasProperty("_Mode"))
