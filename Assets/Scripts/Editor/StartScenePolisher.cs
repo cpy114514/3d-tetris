@@ -41,29 +41,42 @@ public static class StartScenePolisher
         CreateImage("Top Accent", canvas.transform, new Color(0.14f, 0.75f, 0.62f, 0.88f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -8f), new Vector2(0f, 16f));
         CreateImage("Bottom Accent", canvas.transform, new Color(0.96f, 0.34f, 0.28f, 0.82f), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 8f), new Vector2(0f, 16f));
 
-        RectTransform hero = CreatePanel("Start Menu", canvas.transform, new Color(0.1f, 0.12f, 0.115f, 0.92f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 650f));
-        CreateText("Title", hero, "CUBOID TETRIS", 68f, FontStyles.Bold, TextAlignmentOptions.Center, new Color(0.95f, 0.98f, 0.96f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(690f, 92f));
-        CreateText("Subtitle", hero, "5 x 5 x 7 3D board", 28f, FontStyles.Bold, TextAlignmentOptions.Center, new Color(0.52f, 0.92f, 0.82f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -153f), new Vector2(620f, 44f));
-        CreateText("Controls", hero, "A/D move   W rotate   S or Space drop\nQ/E change face   F hold 3D preview", 25f, FontStyles.Normal, TextAlignmentOptions.Center, new Color(0.9f, 0.92f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -250f), new Vector2(650f, 96f));
+        CreateText("Title", canvas.transform, "CUBOID TETRIS", 72f, FontStyles.Bold, TextAlignmentOptions.Center, new Color(0.95f, 0.98f, 0.96f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 210f), new Vector2(760f, 96f));
 
-        Button playButton = CreateButton("Play Button", hero, "PLAY", new Vector2(0.5f, 0.5f), new Vector2(0f, -42f), new Vector2(320f, 64f), new Color(0.13f, 0.78f, 0.62f), Color.white);
-        Button settingsButton = CreateButton("Settings Button", hero, "SETTINGS", new Vector2(0.5f, 0.5f), new Vector2(0f, -126f), new Vector2(320f, 58f), new Color(0.28f, 0.33f, 0.31f), Color.white);
-        Button quitButton = CreateButton("Quit Button", hero, "QUIT", new Vector2(0.5f, 0.5f), new Vector2(0f, -204f), new Vector2(320f, 58f), new Color(0.78f, 0.22f, 0.2f), Color.white);
+        Button playButton = CreateButton("Play Button", canvas.transform, "PLAY", new Vector2(0.5f, 0.5f), new Vector2(0f, 42f), new Vector2(340f, 68f), new Color(0.13f, 0.78f, 0.62f), Color.white);
+        Button settingsButton = CreateButton("Settings Button", canvas.transform, "SETTINGS", new Vector2(0.5f, 0.5f), new Vector2(0f, -42f), new Vector2(340f, 60f), new Color(0.28f, 0.33f, 0.31f), Color.white);
+        Button tutorialButton = CreateButton("Tutorial Button", canvas.transform, "TUTORIAL", new Vector2(0.5f, 0.5f), new Vector2(0f, -118f), new Vector2(340f, 60f), new Color(0.25f, 0.31f, 0.36f), Color.white);
+        Button quitButton = CreateButton("Quit Button", canvas.transform, "QUIT", new Vector2(0.5f, 0.5f), new Vector2(0f, -194f), new Vector2(340f, 60f), new Color(0.78f, 0.22f, 0.2f), Color.white);
 
         UnityEventTools.AddPersistentListener(playButton.onClick, mainMenu.StartGame);
         UnityEventTools.AddPersistentListener(settingsButton.onClick, settingsMenu.OpenSettings);
+        UnityEventTools.AddPersistentListener(tutorialButton.onClick, mainMenu.OpenTutorialFromMenu);
         UnityEventTools.AddPersistentListener(quitButton.onClick, mainMenu.QuitGame);
 
         RectTransform settingsPanel = CreatePanel("Settings Panel", canvas.transform, new Color(0.09f, 0.105f, 0.1f, 0.97f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 620f));
         CreateText("Settings Title", settingsPanel, "SETTINGS", 46f, FontStyles.Bold, TextAlignmentOptions.Center, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -66f), new Vector2(560f, 70f));
-        CreateText("Volume Label", settingsPanel, "Volume", 24f, FontStyles.Bold, TextAlignmentOptions.Left, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -130f), new Vector2(180f, 36f));
-        Slider volumeSlider = CreateSlider("Volume Slider", settingsPanel, new Vector2(0.5f, 1f), new Vector2(80f, -130f), new Vector2(300f, 32f));
-        Toggle fullscreenToggle = CreateToggle("Fullscreen Toggle", settingsPanel, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(0f, -195f), new Vector2(360f, 44f));
+        CreateText("Volume Label", settingsPanel, "Volume", 24f, FontStyles.Bold, TextAlignmentOptions.Left, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -118f), new Vector2(180f, 36f));
+        Slider volumeSlider = CreateSlider("Volume Slider", settingsPanel, new Vector2(0.5f, 1f), new Vector2(80f, -118f), new Vector2(300f, 32f));
+        Toggle fullscreenToggle = CreateToggle("Fullscreen Toggle", settingsPanel, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(0f, -176f), new Vector2(360f, 44f));
+        CreateText("Resolution Label", settingsPanel, "Resolution", 24f, FontStyles.Bold, TextAlignmentOptions.Left, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -248f), new Vector2(180f, 36f));
+        Dropdown resolutionDropdown = CreateDropdown("Resolution Dropdown", settingsPanel, new Vector2(0.5f, 1f), new Vector2(80f, -248f), new Vector2(300f, 42f));
+        CreateText("Quality Label", settingsPanel, "Quality", 24f, FontStyles.Bold, TextAlignmentOptions.Left, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -368f), new Vector2(180f, 36f));
+        Dropdown qualityDropdown = CreateDropdown("Quality Dropdown", settingsPanel, new Vector2(0.5f, 1f), new Vector2(80f, -368f), new Vector2(300f, 42f));
         Button backButton = CreateButton("Settings Back Button", settingsPanel, "BACK", new Vector2(0.5f, 0f), new Vector2(0f, 74f), new Vector2(260f, 52f), new Color(0.28f, 0.33f, 0.31f), Color.white);
         UnityEventTools.AddPersistentListener(backButton.onClick, settingsMenu.CloseSettings);
 
+        RectTransform tutorialPromptPanel = CreatePanel("Tutorial Prompt Panel", canvas.transform, new Color(0f, 0f, 0f, 0.98f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(820f, 440f));
+        CreateText("Tutorial Prompt Title", tutorialPromptPanel, "TUTORIAL", 64f, FontStyles.Bold, TextAlignmentOptions.Center, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(680f, 92f));
+        CreateText("Tutorial Prompt Text", tutorialPromptPanel, "Learn the controls before your first run?\nYou can skip and start now.", 34f, FontStyles.Normal, TextAlignmentOptions.Center, new Color(0.86f, 0.9f, 0.88f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -185f), new Vector2(700f, 130f));
+        Button startTutorialButton = CreateButton("Start Tutorial Button", tutorialPromptPanel, "START TUTORIAL", new Vector2(0.5f, 0f), new Vector2(-160f, 82f), new Vector2(280f, 64f), new Color(0.13f, 0.66f, 0.55f), Color.white);
+        Button skipTutorialButton = CreateButton("Skip Tutorial Button", tutorialPromptPanel, "SKIP", new Vector2(0.5f, 0f), new Vector2(160f, 82f), new Vector2(280f, 64f), new Color(0.35f, 0.38f, 0.41f), Color.white);
+        UnityEventTools.AddPersistentListener(startTutorialButton.onClick, mainMenu.StartTutorialFromPrompt);
+        UnityEventTools.AddPersistentListener(skipTutorialButton.onClick, mainMenu.SkipTutorial);
+
         SerializedObject mainMenuObject = new SerializedObject(mainMenu);
         mainMenuObject.FindProperty("targetSceneName").stringValue = "GamePlay";
+        mainMenuObject.FindProperty("tutorialPromptPanel").objectReferenceValue = tutorialPromptPanel.gameObject;
+        mainMenuObject.FindProperty("tutorialPanel").objectReferenceValue = null;
         mainMenuObject.ApplyModifiedPropertiesWithoutUndo();
 
         SerializedObject settingsObject = new SerializedObject(settingsMenu);
@@ -71,8 +84,11 @@ public static class StartScenePolisher
         settingsObject.FindProperty("volumeSlider").objectReferenceValue = volumeSlider;
         settingsObject.FindProperty("fullscreenToggle").objectReferenceValue = fullscreenToggle;
         settingsObject.FindProperty("backButton").objectReferenceValue = backButton;
+        settingsObject.FindProperty("resolutionDropdown").objectReferenceValue = resolutionDropdown;
+        settingsObject.FindProperty("qualityDropdown").objectReferenceValue = qualityDropdown;
         settingsObject.ApplyModifiedPropertiesWithoutUndo();
         settingsPanel.gameObject.SetActive(false);
+        tutorialPromptPanel.gameObject.SetActive(false);
 
         EnsureEventSystem();
         EnsureBuildScenes();
@@ -177,6 +193,27 @@ public static class StartScenePolisher
         return textComponent;
     }
 
+    private static Text CreateLegacyText(string objectName, Transform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, Color color, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject gameObject = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        gameObject.transform.SetParent(parent, false);
+        RectTransform rectTransform = gameObject.GetComponent<RectTransform>();
+        rectTransform.anchorMin = anchorMin;
+        rectTransform.anchorMax = anchorMax;
+        rectTransform.anchoredPosition = anchoredPosition;
+        rectTransform.sizeDelta = sizeDelta;
+
+        Text textComponent = gameObject.GetComponent<Text>();
+        textComponent.text = text;
+        textComponent.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        textComponent.fontSize = fontSize;
+        textComponent.fontStyle = fontStyle;
+        textComponent.alignment = alignment;
+        textComponent.color = color;
+        textComponent.raycastTarget = false;
+        return textComponent;
+    }
+
     private static Button CreateButton(string objectName, Transform parent, string label, Vector2 anchor, Vector2 anchoredPosition, Vector2 sizeDelta, Color backgroundColor, Color textColor)
     {
         Image image = CreateImage(objectName, parent, backgroundColor, anchor, anchor, anchoredPosition, sizeDelta);
@@ -204,7 +241,7 @@ public static class StartScenePolisher
         sliderRect.sizeDelta = sizeDelta;
 
         Image background = CreateImage("Background", sliderObject.transform, new Color(0.22f, 0.25f, 0.24f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        background.raycastTarget = false;
+        background.raycastTarget = true;
         RectTransform fillArea = CreateEmptyRect("Fill Area", sliderObject.transform, new Vector2(0f, 0.25f), new Vector2(1f, 0.75f), new Vector2(0f, 0f), new Vector2(-24f, 0f));
         Image fill = CreateImage("Fill", fillArea, new Color(0.14f, 0.75f, 0.62f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         RectTransform handleArea = CreateEmptyRect("Handle Slide Area", sliderObject.transform, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(-20f, 0f));
@@ -240,6 +277,57 @@ public static class StartScenePolisher
         toggle.graphic = checkmark;
         toggle.isOn = true;
         return toggle;
+    }
+
+    private static Dropdown CreateDropdown(string objectName, Transform parent, Vector2 anchor, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        Image image = CreateImage(objectName, parent, new Color(0.22f, 0.25f, 0.24f), anchor, anchor, anchoredPosition, sizeDelta);
+        Dropdown dropdown = image.gameObject.AddComponent<Dropdown>();
+
+        Text captionText = CreateLegacyText("Label", image.transform, "Default", 20, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, Vector2.zero, Vector2.one, new Vector2(12f, 0f), new Vector2(-54f, 0f));
+        CreateLegacyText("Arrow", image.transform, "v", 20, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(-24f, 0f), new Vector2(36f, 0f));
+
+        Image template = CreateImage("Template", image.transform, new Color(0.1f, 0.11f, 0.11f, 0.96f), Vector2.zero, Vector2.one, new Vector2(0f, -104f), new Vector2(0f, 160f));
+        template.gameObject.SetActive(false);
+        template.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+        ScrollRect scrollRect = template.gameObject.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.scrollSensitivity = 120f;
+
+        RectTransform viewport = CreateEmptyRect("Viewport", template.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Image viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = new Color(1f, 1f, 1f, 0.02f);
+        viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+
+        RectTransform content = CreateEmptyRect("Content", viewport, new Vector2(0f, 1f), new Vector2(1f, 1f), Vector2.zero, new Vector2(0f, 140f));
+        GameObject itemObject = new GameObject("Item", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Toggle));
+        itemObject.transform.SetParent(content, false);
+        RectTransform itemRect = itemObject.GetComponent<RectTransform>();
+        itemRect.anchorMin = new Vector2(0f, 1f);
+        itemRect.anchorMax = new Vector2(1f, 1f);
+        itemRect.anchoredPosition = new Vector2(0f, -20f);
+        itemRect.sizeDelta = new Vector2(0f, 36f);
+
+        Image itemImage = itemObject.GetComponent<Image>();
+        itemImage.color = new Color(0.16f, 0.18f, 0.18f, 1f);
+        Toggle itemToggle = itemObject.GetComponent<Toggle>();
+        itemToggle.targetGraphic = itemImage;
+
+        Text itemText = CreateLegacyText("Item Label", itemObject.transform, "Default", 18, FontStyle.Normal, TextAnchor.MiddleLeft, Color.white, Vector2.zero, Vector2.one, new Vector2(12f, 0f), new Vector2(-24f, 0f));
+
+        scrollRect.content = content;
+        scrollRect.viewport = viewport;
+
+        dropdown.targetGraphic = image;
+        dropdown.captionText = captionText;
+        dropdown.itemText = itemText;
+        dropdown.template = template.rectTransform;
+        dropdown.options.Clear();
+        dropdown.options.Add(new Dropdown.OptionData("Default"));
+        dropdown.value = 0;
+        dropdown.RefreshShownValue();
+        return dropdown;
     }
 
     private static RectTransform CreateEmptyRect(string objectName, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)

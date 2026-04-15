@@ -9,6 +9,14 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 {
     private const int FrontLayer = 0;
     private const float DefaultColorGrayMix = 0.34f;
+    private const string GameplayDifficultyKey = "GameplayDifficulty";
+    private static readonly string[] GameplayDifficultyNames =
+    {
+        "EASY",
+        "NORMAL",
+        "HARD"
+    };
+
     private static readonly string[] FourPointLightNames =
     {
         "Tetris Front Left Light",
@@ -31,10 +39,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField, Min(0)] private int pointsPerClearedCube = 1;
 
     [Header("Difficulty")]
-    [SerializeField, Min(1)] private int rowsPerDifficultyLevel = 4;
-    [SerializeField, Min(1)] private int piecesPerDifficultyLevel = 12;
-    [SerializeField, Range(0, 40)] private int oneBlockPieceWeight = 5;
-    [SerializeField, Range(0, 40)] private int twoBlockPieceWeight = 8;
+    [SerializeField, Range(0, 2)] private int gameplayDifficulty = 1;
+    [SerializeField, Min(1)] private int rowsPerDifficultyLevel = 3;
+    [SerializeField, Min(1)] private int piecesPerDifficultyLevel = 5;
+    [SerializeField, Range(0, 40)] private int oneBlockPieceWeight = 1;
+    [SerializeField, Range(0, 40)] private int twoBlockPieceWeight = 2;
 
     [Header("Lighting")]
     [SerializeField] private Color ambientLightColor = new Color(0.48f, 0.5f, 0.55f);
@@ -121,15 +130,21 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField] private GameObject settingsPanel;
     [SerializeField] private Slider volumeSlider;
     [SerializeField] private Toggle fullscreenToggle;
+    [SerializeField] private Dropdown resolutionDropdown;
+    [SerializeField] private Dropdown qualityDropdown;
+    [SerializeField] private Dropdown gameplayDifficultyDropdown;
     [SerializeField] private Text resolutionValueText;
     [SerializeField] private Button previousResolutionButton;
     [SerializeField] private Button nextResolutionButton;
-    [SerializeField] private Button autoResolutionButton;
     [SerializeField] private Text qualityValueText;
     [SerializeField] private Button previousQualityButton;
     [SerializeField] private Button nextQualityButton;
-    [SerializeField] private Button autoQualityButton;
+    [SerializeField] private Text gameplayDifficultyValueText;
     [SerializeField] private Button settingsBackButton;
+    [SerializeField] private GameObject tutorialOverlayPanel;
+    [SerializeField] private Text tutorialStepText;
+    [SerializeField] private Button tutorialSkipButton;
+    [SerializeField] private TutorialManager tutorialManager;
 
     private int BoardWidth => Mathf.Max(3, boardSide);
     private int BoardDepth => Mathf.Max(3, boardSide);
@@ -139,8 +154,38 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private float SoftDropInterval => Mathf.Max(0.01f, softDropInterval);
     private int PointsPerPlacedCube => Mathf.Max(0, pointsPerPlacedCube);
     private int PointsPerClearedCube => Mathf.Max(0, pointsPerClearedCube);
-    private int RowsPerDifficultyLevel => Mathf.Max(1, rowsPerDifficultyLevel);
-    private int PiecesPerDifficultyLevel => Mathf.Max(1, piecesPerDifficultyLevel);
+    private int GameplayDifficultyIndex => Mathf.Clamp(gameplayDifficulty, 0, GameplayDifficultyNames.Length - 1);
+    private int RowsPerDifficultyLevel
+    {
+        get
+        {
+            switch (GameplayDifficultyIndex)
+            {
+                case 0:
+                    return Mathf.Max(1, rowsPerDifficultyLevel + 2);
+                case 2:
+                    return Mathf.Max(1, rowsPerDifficultyLevel - 1);
+                default:
+                    return Mathf.Max(1, rowsPerDifficultyLevel);
+            }
+        }
+    }
+
+    private int PiecesPerDifficultyLevel
+    {
+        get
+        {
+            switch (GameplayDifficultyIndex)
+            {
+                case 0:
+                    return Mathf.Max(1, piecesPerDifficultyLevel + 4);
+                case 2:
+                    return Mathf.Max(1, piecesPerDifficultyLevel - 2);
+                default:
+                    return Mathf.Max(1, piecesPerDifficultyLevel);
+            }
+        }
+    }
     private int OneBlockPieceWeight => Mathf.Max(0, oneBlockPieceWeight);
     private int TwoBlockPieceWeight => Mathf.Max(0, twoBlockPieceWeight);
     private float FourPointLightIntensity => Mathf.Max(0f, fourPointLightIntensity);
@@ -188,6 +233,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     };
 
     private Transform deathWarningBar;
+    private Transform tutorialTargetMarker;
     private Transform[,,] grid;
     private Transform[] activeCubes;
     private Transform[] ghostCubes;
@@ -219,6 +265,10 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private Resolution[] availableResolutions;
     private int selectedResolutionIndex;
     private int selectedQualityIndex;
+    private bool updatingSettingsControls;
+    private int tutorialMoveTargetX;
+
+    private bool IsTutorialRunning => tutorialManager != null && tutorialManager.IsActive;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -248,10 +298,13 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         BuildMaterials();
         BuildWorld();
         ResetGame();
+        InitializeTutorialManager();
+        tutorialManager.StartIfRequested();
     }
 
     private void OnValidate()
     {
+        gameplayDifficulty = Mathf.Clamp(gameplayDifficulty, 0, GameplayDifficultyNames.Length - 1);
         boardSide = Mathf.Max(3, boardSide);
         boardHeight = Mathf.Max(4, boardHeight);
         cubeSize = Mathf.Max(0.1f, cubeSize);
@@ -327,21 +380,34 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         UpdatePreviewCamera();
         UpdateClearEffects();
         UpdateDeathWarning();
+        UpdateTutorialTargetMarker();
+        if (tutorialManager != null)
+        {
+            tutorialManager.Tick(Time.deltaTime, paused || gameOver);
+        }
+
         UpdateUi();
 
-        if (Input.GetKeyDown(KeyCode.N))
+        if (!IsTutorialRunning && Input.GetKeyDown(KeyCode.N))
         {
             ResetGame();
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (!IsTutorialRunning && Input.GetKeyDown(KeyCode.Escape))
         {
             TogglePause();
         }
 
         if (paused || gameOver)
         {
+            return;
+        }
+
+        if (IsTutorialRunning)
+        {
+            UpdateTutorialInput();
+            UpdateTutorialFalling();
             return;
         }
 
@@ -353,7 +419,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         bool previewHeld = IsPreviewHeld();
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.S))
+        if (Input.GetKeyDown(KeyCode.Space) || IsDownInputPressed())
         {
             if (!previewHeld)
             {
@@ -362,12 +428,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             }
         }
 
-        if (Input.GetKeyDown(KeyCode.A))
+        if (IsLeftInputPressed())
         {
             TryMove(new Vector3Int(-1, 0, 0));
         }
 
-        if (Input.GetKeyDown(KeyCode.D))
+        if (IsRightInputPressed())
         {
             TryMove(new Vector3Int(1, 0, 0));
         }
@@ -382,7 +448,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             QueueFaceTurn(1, -ContainerTurnAngle);
         }
 
-        if (Input.GetKeyDown(KeyCode.W))
+        if (IsUpInputPressed())
         {
             TryRotate(1);
         }
@@ -398,9 +464,153 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return;
         }
 
-        float fallInterval = Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.S) ? GetSoftDropInterval() : GetFallInterval();
+        float fallInterval = Input.GetKey(KeyCode.Space) || IsDownInputHeld() ? GetSoftDropInterval() : GetFallInterval();
         fallTimer += Time.deltaTime;
         if (fallTimer >= fallInterval)
+        {
+            fallTimer = 0f;
+            DropOneLayer();
+        }
+    }
+
+    private static bool IsLeftInputPressed()
+    {
+        return Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow);
+    }
+
+    private static bool IsRightInputPressed()
+    {
+        return Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow);
+    }
+
+    private static bool IsUpInputPressed()
+    {
+        return Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow);
+    }
+
+    private static bool IsDownInputPressed()
+    {
+        return Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow);
+    }
+
+    private static bool IsDownInputHeld()
+    {
+        return Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+    }
+
+    private void UpdateTutorialInput()
+    {
+        if (tutorialManager == null || !tutorialManager.IsActive)
+        {
+            return;
+        }
+
+        TutorialManager.TutorialStep step = tutorialManager.CurrentStep;
+
+        if (step == TutorialManager.TutorialStep.MoveHorizontal)
+        {
+            if (Input.GetKeyDown(KeyCode.A))
+            {
+                if (tutorialManager.AllowsAction(TutorialManager.TutorialAction.MoveHorizontal) && TryMove(new Vector3Int(-1, 0, 0)))
+                {
+                    if (currentOrigin.x <= tutorialMoveTargetX)
+                    {
+                        tutorialManager.ReportActionSuccess(TutorialManager.TutorialAction.MoveHorizontal);
+                    }
+                }
+                return;
+            }
+
+            if (Input.GetKeyDown(KeyCode.D))
+            {
+                if (tutorialManager.AllowsAction(TutorialManager.TutorialAction.MoveHorizontal) && TryMove(new Vector3Int(1, 0, 0)))
+                {
+                    if (currentOrigin.x <= tutorialMoveTargetX)
+                    {
+                        tutorialManager.ReportActionSuccess(TutorialManager.TutorialAction.MoveHorizontal);
+                    }
+                }
+                return;
+            }
+        }
+        else if (step == TutorialManager.TutorialStep.PlacePiece || step == TutorialManager.TutorialStep.ConnectedClear)
+        {
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.S))
+            {
+                if (tutorialManager.AllowsAction(TutorialManager.TutorialAction.PlacePiece))
+                {
+                    if (!IsPreviewHeld())
+                    {
+                        pieceFalling = true;
+                        fallTimer = 0f;
+                        tutorialManager.ReportActionSuccess(TutorialManager.TutorialAction.PlacePiece);
+                    }
+                }
+                return;
+            }
+        }
+        else if (step == TutorialManager.TutorialStep.RotateContainer)
+        {
+            if (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E))
+            {
+                int faceDelta = Input.GetKeyDown(KeyCode.Q) ? -1 : 1;
+                float yawDelta = faceDelta < 0 ? ContainerTurnAngle : -ContainerTurnAngle;
+                if (tutorialManager.AllowsAction(TutorialManager.TutorialAction.RotateContainer) && QueueFaceTurn(faceDelta, yawDelta))
+                {
+                    tutorialManager.ReportActionSuccess(TutorialManager.TutorialAction.RotateContainer);
+                }
+                else
+                {
+                    tutorialManager.ReportWrongAction("Wait for the current turn to finish.");
+                }
+                return;
+            }
+        }
+        else if (step == TutorialManager.TutorialStep.Preview)
+        {
+            if (Input.GetKeyDown(KeyCode.F))
+            {
+                if (tutorialManager.AllowsAction(TutorialManager.TutorialAction.Preview))
+                {
+                    TryClearSelectedFace();
+                    RefreshGhostPiece();
+                    UpdateDeathWarning();
+                    tutorialManager.ReportActionSuccess(TutorialManager.TutorialAction.Preview);
+                }
+                return;
+            }
+        }
+
+        if (Input.anyKeyDown || Input.GetKeyUp(KeyCode.F))
+        {
+            tutorialManager.ReportWrongAction("Not now. Please follow the tutorial.");
+        }
+    }
+
+    private void UpdateTutorialFalling()
+    {
+        if (!pieceFalling || tutorialManager == null || !tutorialManager.IsActive)
+        {
+            return;
+        }
+
+        if (!tutorialManager.AllowsAction(TutorialManager.TutorialAction.PlacePiece))
+        {
+            pieceFalling = false;
+            fallTimer = 0f;
+            return;
+        }
+
+        if (IsPreviewHeld())
+        {
+            fallTimer = 0f;
+            return;
+        }
+
+        bool softDropHeld = Input.GetKey(KeyCode.Space) || IsDownInputHeld();
+        float interval = softDropHeld ? GetSoftDropInterval() : GetFallInterval();
+        fallTimer += Time.deltaTime;
+        if (fallTimer >= interval)
         {
             fallTimer = 0f;
             DropOneLayer();
@@ -508,6 +718,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         WirePauseButtons();
         SetupSettingsPanel();
+        SetupTutorialOverlay();
+        InitializeTutorialManager();
 
         UpdateUi();
     }
@@ -543,7 +755,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     {
         if (settingsPanel == null)
         {
-            Image panel = CreateUiImage("Settings Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.84f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 620f));
+            Image panel = CreateUiImage("Settings Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.98039216f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 850f));
             settingsPanel = panel.gameObject;
         }
         else
@@ -551,35 +763,59 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             RectTransform settingsRect = settingsPanel.GetComponent<RectTransform>();
             if (settingsRect != null)
             {
-                settingsRect.sizeDelta = new Vector2(640f, 620f);
+                settingsRect.sizeDelta = new Vector2(1000f, 850f);
+            }
+
+            Image settingsImage = settingsPanel.GetComponent<Image>();
+            if (settingsImage != null)
+            {
+                settingsImage.color = new Color(0f, 0f, 0f, 0.98039216f);
             }
         }
 
-        if (settingsPanel.transform.Find("Settings Title") == null)
+        Transform title = settingsPanel.transform.Find("Settings Title");
+        if (title == null)
         {
-            CreateUiText("Settings Title", settingsPanel.transform, "SETTINGS", 36, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -56f), new Vector2(500f, 54f));
+            title = CreateUiText("Settings Title", settingsPanel.transform, "SETTINGS", 100, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -66.841f), new Vector2(667.7963f, 190.3173f)).transform;
+        }
+
+        SetUiRect(title, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -66.841f), new Vector2(667.7963f, 190.3173f));
+        Text titleText = title.GetComponent<Text>();
+        if (titleText != null)
+        {
+            titleText.fontSize = 100;
         }
 
         Transform volumeLabel = settingsPanel.transform.Find("Volume Label");
         if (volumeLabel == null)
         {
-            volumeLabel = CreateUiText("Volume Label", settingsPanel.transform, "Volume", 22, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -122f), new Vector2(180f, 36f)).transform;
+            volumeLabel = CreateUiText("Volume Label", settingsPanel.transform, "Volume", 32, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -221f), new Vector2(180f, 36f)).transform;
         }
-        SetUiRect(volumeLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-180f, -122f), new Vector2(180f, 36f));
+        SetUiRect(volumeLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -221f), new Vector2(180f, 36f));
+        Text volumeLabelText = volumeLabel.GetComponent<Text>();
+        if (volumeLabelText != null)
+        {
+            volumeLabelText.fontSize = 32;
+        }
 
         if (volumeSlider == null)
         {
-            volumeSlider = CreateUiSlider("Volume Slider", settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(80f, -122f), new Vector2(300f, 32f));
+            volumeSlider = CreateUiSlider("Volume Slider", settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(102f, -223f), new Vector2(300f, 32f));
         }
-        SetUiRect(volumeSlider, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -122f), new Vector2(300f, 32f));
+        SetUiRect(volumeSlider, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -223f), new Vector2(300f, 32f));
 
         if (fullscreenToggle == null)
         {
-            fullscreenToggle = CreateUiToggle("Fullscreen Toggle", settingsPanel.transform, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(0f, -184f), new Vector2(360f, 44f));
+            fullscreenToggle = CreateUiToggle("Fullscreen Toggle", settingsPanel.transform, "Fullscreen", new Vector2(0.5f, 1f), new Vector2(0f, -285f), new Vector2(400f, 50f));
         }
-        SetUiRect(fullscreenToggle, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -184f), new Vector2(360f, 44f));
+        SetUiRect(fullscreenToggle, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -285f), new Vector2(400f, 50f));
 
-        HideUiObject(settingsPanel.transform.Find("Resolution Label"));
+        SetUiObjectActive(settingsPanel.transform.Find("Resolution Label"), false);
+        if (resolutionDropdown != null)
+        {
+            resolutionDropdown.gameObject.SetActive(true);
+            SetUiRect(resolutionDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(86f, -350f), new Vector2(300f, 42f));
+        }
 
         if (previousResolutionButton == null)
         {
@@ -600,9 +836,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
         HideButtonObject(nextResolutionButton);
 
-        HideButtonObject(autoResolutionButton);
-
-        HideUiObject(settingsPanel.transform.Find("Quality Label"));
+        SetUiObjectActive(settingsPanel.transform.Find("Quality Label"), false);
+        if (qualityDropdown != null)
+        {
+            qualityDropdown.gameObject.SetActive(true);
+            SetUiRect(qualityDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -425f), new Vector2(300f, 42f));
+        }
 
         if (previousQualityButton == null)
         {
@@ -623,7 +862,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
         HideButtonObject(nextQualityButton);
 
-        HideButtonObject(autoQualityButton);
+        SetupGameplayDifficultyControl();
 
         if (settingsBackButton == null)
         {
@@ -636,12 +875,181 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         RefreshSettingsControls();
     }
 
+    private void SetupGameplayDifficultyControl()
+    {
+        Transform difficultyLabel = settingsPanel.transform.Find("Gameplay Difficulty Label");
+        if (difficultyLabel == null)
+        {
+            difficultyLabel = CreateUiText("Gameplay Difficulty Label", settingsPanel.transform, "Difficulty", 32, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -500f), new Vector2(180f, 36f)).transform;
+        }
+
+        SetUiRect(difficultyLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -500f), new Vector2(180f, 36f));
+        Text labelText = difficultyLabel.GetComponent<Text>();
+        if (labelText != null)
+        {
+            labelText.fontSize = 32;
+            labelText.fontStyle = FontStyle.Bold;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.color = Color.white;
+        }
+
+        if (gameplayDifficultyDropdown == null)
+        {
+            Transform existing = settingsPanel.transform.Find("Gameplay Difficulty Dropdown");
+            gameplayDifficultyDropdown = existing != null ? existing.GetComponent<Dropdown>() : null;
+        }
+
+        if (gameplayDifficultyDropdown == null && qualityDropdown != null)
+        {
+            gameplayDifficultyDropdown = Instantiate(qualityDropdown, settingsPanel.transform);
+            gameplayDifficultyDropdown.name = "Gameplay Difficulty Dropdown";
+            gameplayDifficultyDropdown.onValueChanged = new Dropdown.DropdownEvent();
+        }
+
+        if (gameplayDifficultyDropdown != null)
+        {
+            gameplayDifficultyDropdown.gameObject.SetActive(true);
+            gameplayDifficultyDropdown.onValueChanged.RemoveListener(SetGameplayDifficultyDropdownIndex);
+            SetUiRect(gameplayDifficultyDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
+            PopulateGameplayDifficultyDropdown();
+        }
+        else if (gameplayDifficultyValueText == null)
+        {
+            gameplayDifficultyValueText = CreateUiText("Gameplay Difficulty Value", settingsPanel.transform, GameplayDifficultyNames[GameplayDifficultyIndex], 24, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
+        }
+
+        if (gameplayDifficultyValueText != null)
+        {
+            SetUiRect(gameplayDifficultyValueText, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
+        }
+    }
+
+    private void SetupTutorialOverlay()
+    {
+        Transform overlayParent = GetOrCreateTutorialUiContainer();
+        if (tutorialOverlayPanel == null)
+        {
+            Image panel = CreateUiImage("Interactive Tutorial Panel", overlayParent, new Color(0f, 0f, 0f, 0.76f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 84f), new Vector2(1120f, 190f));
+            tutorialOverlayPanel = panel.gameObject;
+        }
+        else
+        {
+            if (tutorialOverlayPanel.transform.parent != overlayParent)
+            {
+                tutorialOverlayPanel.transform.SetParent(overlayParent, false);
+            }
+
+            RectTransform rect = tutorialOverlayPanel.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.anchorMin = new Vector2(0.5f, 0f);
+                rect.anchorMax = new Vector2(0.5f, 0f);
+                rect.pivot = new Vector2(0.5f, 0f);
+                rect.anchoredPosition = new Vector2(0f, 84f);
+                rect.sizeDelta = new Vector2(1120f, 190f);
+            }
+        }
+
+        if (tutorialStepText == null)
+        {
+            tutorialStepText = CreateUiText("Interactive Tutorial Text", tutorialOverlayPanel.transform, "", 26, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(-48f, 14f), new Vector2(-204f, -30f));
+        }
+        else
+        {
+            tutorialStepText.fontSize = 26;
+            tutorialStepText.fontStyle = FontStyle.Bold;
+            tutorialStepText.alignment = TextAnchor.MiddleLeft;
+            tutorialStepText.color = Color.white;
+            SetUiRect(tutorialStepText, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(-48f, 14f), new Vector2(-204f, -30f));
+        }
+
+        if (tutorialSkipButton == null)
+        {
+            tutorialSkipButton = CreateUiButton("Skip Interactive Tutorial Button", tutorialOverlayPanel.transform, "SKIP", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-92f, 38f), new Vector2(144f, 44f));
+        }
+        else
+        {
+            SetUiRect(tutorialSkipButton, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-92f, 38f), new Vector2(144f, 44f));
+        }
+
+        ApplyButtonColor(tutorialSkipButton, new Color(0.35f, 0.38f, 0.41f, 1f));
+        tutorialOverlayPanel.SetActive(false);
+    }
+
+    private Transform GetOrCreateTutorialUiContainer()
+    {
+        if (gameCanvas == null)
+        {
+            return transform;
+        }
+
+        Transform existing = gameCanvas.transform.Find("Container");
+        if (existing != null)
+        {
+            RectTransform existingRect = existing as RectTransform;
+            if (existingRect != null)
+            {
+                existingRect.anchorMin = Vector2.zero;
+                existingRect.anchorMax = Vector2.one;
+                existingRect.pivot = new Vector2(0.5f, 0.5f);
+                existingRect.anchoredPosition = Vector2.zero;
+                existingRect.sizeDelta = Vector2.zero;
+                existingRect.offsetMin = Vector2.zero;
+                existingRect.offsetMax = Vector2.zero;
+            }
+
+            return existing;
+        }
+
+        RectTransform container = CreateUiRect("Container", gameCanvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        container.pivot = new Vector2(0.5f, 0.5f);
+        container.anchoredPosition = Vector2.zero;
+        container.sizeDelta = Vector2.zero;
+        container.offsetMin = Vector2.zero;
+        container.offsetMax = Vector2.zero;
+        return container;
+    }
+
+    private void InitializeTutorialManager()
+    {
+        if (tutorialManager == null)
+        {
+            tutorialManager = GetComponent<TutorialManager>();
+        }
+
+        if (tutorialManager == null)
+        {
+            tutorialManager = gameObject.AddComponent<TutorialManager>();
+        }
+
+        tutorialManager.ConfigureUi(tutorialOverlayPanel, tutorialStepText, tutorialSkipButton);
+        tutorialManager.SetStepEnteredCallback(PrepareTutorialScenario);
+    }
+
     private void WireSettingsButtons()
     {
         if (settingsBackButton != null)
         {
             settingsBackButton.onClick.RemoveListener(CloseSettingsPanel);
             settingsBackButton.onClick.AddListener(CloseSettingsPanel);
+        }
+
+        if (resolutionDropdown != null)
+        {
+            resolutionDropdown.onValueChanged.RemoveListener(SetResolutionDropdownIndex);
+            resolutionDropdown.onValueChanged.AddListener(SetResolutionDropdownIndex);
+        }
+
+        if (qualityDropdown != null)
+        {
+            qualityDropdown.onValueChanged.RemoveListener(SetQualityDropdownIndex);
+            qualityDropdown.onValueChanged.AddListener(SetQualityDropdownIndex);
+        }
+
+        if (gameplayDifficultyDropdown != null)
+        {
+            gameplayDifficultyDropdown.onValueChanged.RemoveListener(SetGameplayDifficultyDropdownIndex);
+            gameplayDifficultyDropdown.onValueChanged.AddListener(SetGameplayDifficultyDropdownIndex);
         }
     }
 
@@ -717,6 +1125,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
     private void RefreshSettingsControls()
     {
+        updatingSettingsControls = true;
         if (volumeSlider != null)
         {
             volumeSlider.onValueChanged.RemoveListener(SetVolume);
@@ -735,6 +1144,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         RefreshResolutionOptions(false);
         RefreshQualityOptions(false);
+        RefreshGameplayDifficultyOptions(false);
+        updatingSettingsControls = false;
     }
 
     private void RefreshResolutionOptions(bool keepSelection)
@@ -785,6 +1196,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         selectedResolutionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ResolutionIndex", currentIndex), 0, availableResolutions.Length - 1);
+        PopulateResolutionDropdown();
         UpdateResolutionText();
     }
 
@@ -806,7 +1218,54 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         selectedQualityIndex = Mathf.Clamp(PlayerPrefs.GetInt("QualityLevel", QualitySettings.GetQualityLevel()), 0, QualitySettings.names.Length - 1);
         QualitySettings.SetQualityLevel(selectedQualityIndex, true);
+        PopulateQualityDropdown();
         UpdateQualityText();
+    }
+
+    private void RefreshGameplayDifficultyOptions(bool keepSelection)
+    {
+        if (!keepSelection)
+        {
+            gameplayDifficulty = Mathf.Clamp(PlayerPrefs.GetInt(GameplayDifficultyKey, gameplayDifficulty), 0, GameplayDifficultyNames.Length - 1);
+        }
+        else
+        {
+            gameplayDifficulty = GameplayDifficultyIndex;
+        }
+
+        PopulateGameplayDifficultyDropdown();
+        UpdateGameplayDifficultyText();
+        RecalculateLevel();
+    }
+
+    private void SetResolutionDropdownIndex(int index)
+    {
+        if (updatingSettingsControls)
+        {
+            return;
+        }
+
+        SetResolutionIndex(index, true);
+    }
+
+    private void SetQualityDropdownIndex(int index)
+    {
+        if (updatingSettingsControls)
+        {
+            return;
+        }
+
+        SetQualityIndex(index, true);
+    }
+
+    private void SetGameplayDifficultyDropdownIndex(int index)
+    {
+        if (updatingSettingsControls)
+        {
+            return;
+        }
+
+        SetGameplayDifficultyIndex(index, true);
     }
 
     private void SetVolume(float value)
@@ -878,7 +1337,41 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             PlayerPrefs.Save();
         }
 
+        UpdateResolutionDropdownValue();
         UpdateResolutionText();
+    }
+
+    private void PopulateResolutionDropdown()
+    {
+        if (resolutionDropdown == null || availableResolutions == null || availableResolutions.Length == 0)
+        {
+            return;
+        }
+
+        resolutionDropdown.ClearOptions();
+        List<string> options = new List<string>();
+        for (int i = 0; i < availableResolutions.Length; i++)
+        {
+            Resolution resolution = availableResolutions[i];
+            options.Add(resolution.width + " x " + resolution.height);
+        }
+
+        resolutionDropdown.AddOptions(options);
+        UpdateResolutionDropdownValue();
+    }
+
+    private void UpdateResolutionDropdownValue()
+    {
+        if (resolutionDropdown == null || availableResolutions == null || availableResolutions.Length == 0)
+        {
+            return;
+        }
+
+        bool wasUpdating = updatingSettingsControls;
+        updatingSettingsControls = true;
+        resolutionDropdown.value = Mathf.Clamp(selectedResolutionIndex, 0, availableResolutions.Length - 1);
+        resolutionDropdown.RefreshShownValue();
+        updatingSettingsControls = wasUpdating;
     }
 
     private void UpdateResolutionText()
@@ -931,7 +1424,22 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             PlayerPrefs.Save();
         }
 
+        UpdateQualityDropdownValue();
         UpdateQualityText();
+    }
+
+    private void SetGameplayDifficultyIndex(int index, bool apply)
+    {
+        gameplayDifficulty = Mathf.Clamp(index, 0, GameplayDifficultyNames.Length - 1);
+        if (apply)
+        {
+            PlayerPrefs.SetInt(GameplayDifficultyKey, gameplayDifficulty);
+            PlayerPrefs.Save();
+        }
+
+        RecalculateLevel();
+        UpdateGameplayDifficultyDropdownValue();
+        UpdateGameplayDifficultyText();
     }
 
     private int GetRecommendedQualityIndex()
@@ -961,6 +1469,70 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         qualityValueText.text = QualitySettings.names[Mathf.Clamp(selectedQualityIndex, 0, QualitySettings.names.Length - 1)];
+    }
+
+    private void PopulateQualityDropdown()
+    {
+        if (qualityDropdown == null)
+        {
+            return;
+        }
+
+        string[] qualityNames = QualitySettings.names;
+        qualityDropdown.ClearOptions();
+        qualityDropdown.AddOptions(new List<string>(qualityNames.Length > 0 ? qualityNames : new[] { "Default" }));
+        UpdateQualityDropdownValue();
+    }
+
+    private void UpdateQualityDropdownValue()
+    {
+        if (qualityDropdown == null)
+        {
+            return;
+        }
+
+        bool wasUpdating = updatingSettingsControls;
+        updatingSettingsControls = true;
+        int qualityCount = Mathf.Max(qualityDropdown.options.Count, 1);
+        qualityDropdown.value = Mathf.Clamp(selectedQualityIndex, 0, qualityCount - 1);
+        qualityDropdown.RefreshShownValue();
+        updatingSettingsControls = wasUpdating;
+    }
+
+    private void PopulateGameplayDifficultyDropdown()
+    {
+        if (gameplayDifficultyDropdown == null)
+        {
+            return;
+        }
+
+        gameplayDifficultyDropdown.ClearOptions();
+        gameplayDifficultyDropdown.AddOptions(new List<string>(GameplayDifficultyNames));
+        UpdateGameplayDifficultyDropdownValue();
+        gameplayDifficultyDropdown.onValueChanged.RemoveListener(SetGameplayDifficultyDropdownIndex);
+        gameplayDifficultyDropdown.onValueChanged.AddListener(SetGameplayDifficultyDropdownIndex);
+    }
+
+    private void UpdateGameplayDifficultyDropdownValue()
+    {
+        if (gameplayDifficultyDropdown == null)
+        {
+            return;
+        }
+
+        bool wasUpdating = updatingSettingsControls;
+        updatingSettingsControls = true;
+        gameplayDifficultyDropdown.value = GameplayDifficultyIndex;
+        gameplayDifficultyDropdown.RefreshShownValue();
+        updatingSettingsControls = wasUpdating;
+    }
+
+    private void UpdateGameplayDifficultyText()
+    {
+        if (gameplayDifficultyValueText != null)
+        {
+            gameplayDifficultyValueText.text = GameplayDifficultyNames[GameplayDifficultyIndex];
+        }
     }
 
     private void UpdateUi()
@@ -993,6 +1565,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(paused && !gameOver && settingsOpen);
+        }
+
+        if (tutorialOverlayPanel != null)
+        {
+            tutorialOverlayPanel.SetActive(IsTutorialRunning && !gameOver && !paused);
         }
     }
 
@@ -1125,6 +1702,16 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         transform.gameObject.SetActive(false);
     }
 
+    private void SetUiObjectActive(Transform transform, bool active)
+    {
+        if (transform == null)
+        {
+            return;
+        }
+
+        transform.gameObject.SetActive(active);
+    }
+
     private Text CreateUiText(string objectName, Transform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, Color color, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
     {
         GameObject textObject = new GameObject(objectName, typeof(RectTransform), typeof(Text));
@@ -1204,7 +1791,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         sliderRect.sizeDelta = sizeDelta;
 
         Image background = CreateUiImage("Background", sliderObject.transform, new Color(0.18f, 0.2f, 0.2f, 1f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        background.raycastTarget = false;
+        background.raycastTarget = true;
         RectTransform fillArea = CreateUiRect("Fill Area", sliderObject.transform, new Vector2(0f, 0.2f), new Vector2(1f, 0.8f), Vector2.zero, new Vector2(-24f, 0f));
         Image fill = CreateUiImage("Fill", fillArea, new Color(0.13f, 0.78f, 0.62f, 1f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         RectTransform handleArea = CreateUiRect("Handle Slide Area", sliderObject.transform, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(-20f, 0f));
@@ -1262,21 +1849,22 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             new PieceDefinition("I3", new Color(0f, 0.9f, 1f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0)),
             new PieceDefinition("V3", new Color(0.22f, 0.42f, 1f), 1, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
             new PieceDefinition("O", new Color(1f, 0.86f, 0.12f), 1, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
-            new PieceDefinition("T", new Color(0.8f, 0.28f, 1f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0)),
-            new PieceDefinition("S", new Color(0.14f, 0.9f, 0.28f), 2, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0)),
-            new PieceDefinition("Z", new Color(1f, 0.18f, 0.18f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
-            new PieceDefinition("J", new Color(0.22f, 0.42f, 1f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0)),
-            new PieceDefinition("L", new Color(1f, 0.54f, 0.12f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(1, -1, 0)),
-            new PieceDefinition("P5", new Color(1f, 0.36f, 0.68f), 3, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("U5", new Color(0.26f, 1f, 0.66f), 3, new Vector3Int(-1, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
-            new PieceDefinition("V5", new Color(1f, 0.66f, 0.1f), 4, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0), new Vector3Int(2, -2, 0)),
-            new PieceDefinition("W5", new Color(0.55f, 1f, 0.25f), 4, new Vector3Int(-1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0)),
-            new PieceDefinition("N5", new Color(0.24f, 0.95f, 0.88f), 4, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(1, -2, 0)),
-            new PieceDefinition("T5", new Color(0.86f, 0.5f, 1f), 5, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("X5", new Color(0.96f, 0.52f, 1f), 5, new Vector3Int(0, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("F5", new Color(0.12f, 0.78f, 1f), 5, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("C6", new Color(1f, 0.32f, 0.2f), 7, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(-1, -2, 0), new Vector3Int(0, -2, 0)),
-            new PieceDefinition("Y6", new Color(0.58f, 0.72f, 1f), 7, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(0, -3, 0), new Vector3Int(-1, -1, 0), new Vector3Int(1, -2, 0))
+            new PieceDefinition("T", new Color(0.8f, 0.28f, 1f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0)),
+            new PieceDefinition("S", new Color(0.14f, 0.9f, 0.28f), 1, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0)),
+            new PieceDefinition("Z", new Color(1f, 0.18f, 0.18f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
+            new PieceDefinition("J", new Color(0.22f, 0.42f, 1f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0)),
+            new PieceDefinition("L", new Color(1f, 0.54f, 0.12f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(1, -1, 0)),
+            new PieceDefinition("P5", new Color(1f, 0.36f, 0.68f), 1, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("U5", new Color(0.26f, 1f, 0.66f), 1, new Vector3Int(-1, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0)),
+            new PieceDefinition("V5", new Color(1f, 0.66f, 0.1f), 2, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0), new Vector3Int(2, -2, 0)),
+            new PieceDefinition("W5", new Color(0.55f, 1f, 0.25f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(1, -2, 0)),
+            new PieceDefinition("N5", new Color(0.24f, 0.95f, 0.88f), 2, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(1, -2, 0)),
+            new PieceDefinition("T5", new Color(0.86f, 0.5f, 1f), 3, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("X5", new Color(0.96f, 0.52f, 1f), 3, new Vector3Int(0, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(1, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("F5", new Color(0.12f, 0.78f, 1f), 3, new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("C6", new Color(1f, 0.32f, 0.2f), 4, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(-1, -1, 0), new Vector3Int(-1, -2, 0), new Vector3Int(0, -2, 0)),
+            new PieceDefinition("I4T", new Color(0.42f, 0.8f, 1f), 99, new Vector3Int(-1, 0, 0), new Vector3Int(0, 0, 0), new Vector3Int(1, 0, 0), new Vector3Int(2, 0, 0)),
+            new PieceDefinition("Y6", new Color(0.58f, 0.72f, 1f), 4, new Vector3Int(0, 0, 0), new Vector3Int(0, -1, 0), new Vector3Int(0, -2, 0), new Vector3Int(0, -3, 0), new Vector3Int(-1, -1, 0), new Vector3Int(1, -2, 0))
         };
     }
 
@@ -1286,7 +1874,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         Color railColor = new Color(0.74f, 0.79f, 0.83f);
         Color gridColor = new Color(1f, 1f, 1f, 0.18f);
         Color ghostColor = new Color(ghostPreviewColor.r, ghostPreviewColor.g, ghostPreviewColor.b, GhostAlpha);
-        Color deathWarningColor = new Color(0.78f, 0.08f, 0.08f, 0f);
+        Color deathWarningColor = new Color(0.62f, 0.03f, 0.04f, 0f);
 
         if (bodyMaterial == null)
         {
@@ -1381,6 +1969,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         BuildDeathWarning();
+        EnsureTutorialTargetMarker();
         SetupEditableUi();
     }
 
@@ -1432,6 +2021,35 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         deathWarningBar = CreateCube("Death Row Warning", Vector3.zero, Vector3.one, deathWarningMaterial, warningRoot);
         RefreshDeathWarningVisual();
         deathWarningBar.gameObject.SetActive(false);
+    }
+
+    private void EnsureTutorialTargetMarker()
+    {
+        if (tutorialTargetMarker == null)
+        {
+            Transform existing = warningRoot != null ? warningRoot.Find("Tutorial Target Marker") : null;
+            if (existing != null)
+            {
+                tutorialTargetMarker = existing;
+            }
+        }
+
+        if (tutorialTargetMarker == null)
+        {
+            Material markerMaterial = MakeTransparentMaterial(
+                "Tutorial Target Marker Material",
+                new Color(0.24f, 0.95f, 0.62f, 0.34f),
+                0f,
+                0.08f);
+            tutorialTargetMarker = CreateCube(
+                "Tutorial Target Marker",
+                Vector3.zero,
+                new Vector3(CubeSize * 1.02f, CubeSize * 1.02f, CubeSize * 0.26f),
+                markerMaterial,
+                warningRoot);
+        }
+
+        tutorialTargetMarker.gameObject.SetActive(false);
     }
 
     private void SetupCamera()
@@ -1613,6 +2231,10 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     {
         viewYaw = Mathf.MoveTowardsAngle(viewYaw, targetViewYaw, ContainerTurnSpeed * Time.deltaTime);
         UpdatePendingFaceChange();
+        if (tutorialManager != null && Mathf.Abs(Mathf.DeltaAngle(viewYaw, targetViewYaw)) <= 0.5f)
+        {
+            tutorialManager.ReportContainerTurnCompleted();
+        }
 
         if (containerRoot != null)
         {
@@ -1620,11 +2242,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
     }
 
-    private void QueueFaceTurn(int faceDelta, float yawDelta)
+    private bool QueueFaceTurn(int faceDelta, float yawDelta)
     {
         if (hasPendingFaceChange || Mathf.Abs(Mathf.DeltaAngle(viewYaw, targetViewYaw)) > 0.5f)
         {
-            return;
+            return false;
         }
 
         pendingFace = WrapFace(activeFace + faceDelta);
@@ -1632,6 +2254,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         faceTurnTargetYaw = targetViewYaw + yawDelta;
         targetViewYaw = faceTurnTargetYaw;
         hasPendingFaceChange = true;
+        return true;
     }
 
     private void UpdatePendingFaceChange()
@@ -1736,6 +2359,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         ghostCubes = new Transform[0];
         score = 0;
         layers = 0;
+        gameplayDifficulty = Mathf.Clamp(PlayerPrefs.GetInt(GameplayDifficultyKey, gameplayDifficulty), 0, GameplayDifficultyNames.Length - 1);
         level = 1;
         lockedPieces = 0;
         activeFace = 0;
@@ -1766,6 +2390,141 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         SpawnPiece();
         UpdateUi();
+    }
+
+    private void PrepareTutorialScenario(TutorialManager.TutorialStep step)
+    {
+        switch (step)
+        {
+            case TutorialManager.TutorialStep.MoveHorizontal:
+                SetupTutorialMoveExample();
+                break;
+            case TutorialManager.TutorialStep.PlacePiece:
+                SetupTutorialPlaceStep();
+                break;
+            case TutorialManager.TutorialStep.RotateContainer:
+                SetupTutorialRotateContainerStep();
+                break;
+            case TutorialManager.TutorialStep.ConnectedClear:
+                SetupTutorialConnectedClearExample();
+                break;
+            case TutorialManager.TutorialStep.Preview:
+                SetupTutorialPreviewStep();
+                break;
+        }
+    }
+
+    private void SetupTutorialMoveExample()
+    {
+        ResetTutorialBoard();
+        ConfigureTutorialBaseView(true);
+        tutorialMoveTargetX = 0;
+        ForceCurrentPiece("I2");
+        currentOrigin = new Vector3Int(BoardWidth - 2, GetSpawnOriginY(currentCells), FrontLayer);
+        RefreshTutorialPieceState();
+    }
+
+    private void SetupTutorialPlaceStep()
+    {
+        pieceFalling = false;
+        fallTimer = 0f;
+    }
+
+    private void SetupTutorialRotateContainerStep()
+    {
+        ConfigureTutorialBaseView(true);
+        ForceCurrentPiece("Dot1");
+        currentOrigin = new Vector3Int(BoardWidth / 2, GetSpawnOriginY(currentCells), FrontLayer);
+        RefreshTutorialPieceState();
+    }
+
+    private void SetupTutorialConnectedClearExample()
+    {
+        ConfigureTutorialBaseView(false);
+        ForceCurrentPiece("I4T");
+        int originX = activeFace == 3 ? 1 : 2;
+        currentOrigin = new Vector3Int(originX, GetSpawnOriginY(currentCells), FrontLayer);
+        RefreshTutorialPieceState();
+    }
+
+    private void SetupTutorialPreviewStep()
+    {
+        ConfigureTutorialBaseView(false);
+    }
+
+    private void ConfigureTutorialBaseView(bool resetFace)
+    {
+        if (resetFace)
+        {
+            activeFace = 0;
+            pendingFace = 0;
+            viewYaw = 0f;
+            targetViewYaw = 0f;
+            faceTurnStartYaw = 0f;
+            faceTurnTargetYaw = 0f;
+        }
+        else
+        {
+            pendingFace = activeFace;
+            targetViewYaw = viewYaw;
+            faceTurnStartYaw = viewYaw;
+            faceTurnTargetYaw = viewYaw;
+        }
+
+        hasPendingFaceChange = false;
+        ApplyCameraTransform(viewYaw, false, true);
+        pieceFalling = false;
+        fallTimer = 0f;
+    }
+
+    private void RefreshTutorialPieceState()
+    {
+        pieceFalling = false;
+        fallTimer = 0f;
+        RefreshActivePiece();
+        RefreshGhostPiece();
+        RefreshDeathWarningVisual();
+        UpdateDeathWarning();
+    }
+
+    private void ResetTutorialBoard()
+    {
+        ClearChildren(lockedRoot);
+        ClearChildren(activeRoot);
+        ClearChildren(ghostRoot);
+        grid = new Transform[BoardWidth, BoardHeight, BoardDepth];
+        activeCubes = new Transform[0];
+        ghostCubes = new Transform[0];
+    }
+
+    private void ForceCurrentPiece(string pieceName)
+    {
+        int pieceIndex = FindPieceIndex(pieceName);
+        currentPieceIndex = pieceIndex;
+        nextPieceIndex = pieceIndex;
+        currentCells = CopyCells(pieces[pieceIndex].Cells);
+        currentOrigin = new Vector3Int(BoardWidth / 2, GetSpawnOriginY(currentCells), FrontLayer);
+        pieceFalling = false;
+        fallTimer = 0f;
+
+        CreateActiveCubes();
+        CreateGhostCubes();
+        RefreshActivePiece();
+        RefreshGhostPiece();
+        RefreshNextPreview();
+    }
+
+    private int FindPieceIndex(string pieceName)
+    {
+        for (int i = 0; i < pieces.Length; i++)
+        {
+            if (pieces[i].Name == pieceName)
+            {
+                return i;
+            }
+        }
+
+        return 0;
     }
 
     private void SpawnPiece()
@@ -1986,8 +2745,16 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         score += currentCells.Length * PointsPerPlacedCube;
         RecalculateLevel();
         ApplyClearedRows(ClearFullRows());
+        if (tutorialManager != null)
+        {
+            tutorialManager.ReportPieceLocked();
+        }
 
         SpawnPiece();
+        if (IsTutorialRunning)
+        {
+            PrepareTutorialScenario(tutorialManager.CurrentStep);
+        }
     }
 
     private void StickWaitingPieceToTop()
@@ -2045,6 +2812,10 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         score += clearResult.Blocks * PointsPerClearedCube;
         layers += clearResult.Rows;
         RecalculateLevel();
+        if (tutorialManager != null)
+        {
+            tutorialManager.ReportRowsCleared(clearResult.Rows);
+        }
     }
 
     private void RecalculateLevel()
@@ -2087,53 +2858,100 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     {
         int age = Mathf.Max(0, level - piece.UnlockLevel);
         int cells = piece.Cells.Length;
+        int difficulty = GameplayDifficultyIndex;
 
         if (cells == 1)
         {
-            return OneBlockPieceWeight;
+            switch (difficulty)
+            {
+                case 0:
+                    return Mathf.Max(OneBlockPieceWeight, 4);
+                case 2:
+                    return Mathf.Max(1, OneBlockPieceWeight);
+                default:
+                    return OneBlockPieceWeight;
+            }
         }
 
         if (cells == 2)
         {
-            return TwoBlockPieceWeight;
+            switch (difficulty)
+            {
+                case 0:
+                    return Mathf.Max(TwoBlockPieceWeight, 6);
+                case 2:
+                    return Mathf.Max(1, TwoBlockPieceWeight - 1);
+                default:
+                    return TwoBlockPieceWeight;
+            }
         }
 
         if (cells == 3)
         {
-            return Mathf.Max(45, 95 - level * 4);
+            switch (difficulty)
+            {
+                case 0:
+                    return Mathf.Max(34, 72 - level * 4);
+                case 2:
+                    return Mathf.Max(10, 44 - level * 8);
+                default:
+                    return Mathf.Max(18, 56 - level * 6);
+            }
         }
 
         if (cells == 4)
         {
-            return Mathf.Clamp(42 + age * 5, 42, 78);
+            switch (difficulty)
+            {
+                case 0:
+                    return Mathf.Clamp(44 + age * 3, 44, 82);
+                case 2:
+                    return Mathf.Clamp(90 + age * 8, 90, 140);
+                default:
+                    return Mathf.Clamp(68 + age * 5, 68, 110);
+            }
         }
 
         if (cells == 5)
         {
-            return Mathf.Clamp(13 + age * 5, 13, 34);
+            switch (difficulty)
+            {
+                case 0:
+                    return Mathf.Clamp(16 + age * 4, 16, 48);
+                case 2:
+                    return Mathf.Clamp(58 + age * 10, 58, 122);
+                default:
+                    return Mathf.Clamp(34 + age * 8, 34, 90);
+            }
         }
 
-        return Mathf.Clamp(5 + age * 3, 5, 18);
+        switch (difficulty)
+        {
+            case 0:
+                return Mathf.Clamp(6 + age * 3, 6, 24);
+            case 2:
+                return Mathf.Clamp(30 + age * 8, 30, 82);
+            default:
+                return Mathf.Clamp(16 + age * 6, 16, 55);
+        }
     }
 
     private string GetPieceComplexityLabel()
     {
-        if (level >= 7)
+        int sixBlockLabelLevel = GameplayDifficultyIndex == 0 ? 7 : GameplayDifficultyIndex == 2 ? 4 : 5;
+        int fiveBlockLabelLevel = GameplayDifficultyIndex == 0 ? 3 : 2;
+
+        if (level >= sixBlockLabelLevel)
         {
             return "Rare 6-block";
         }
 
-        if (level >= 3)
+        if (level >= fiveBlockLabelLevel)
         {
             return "Rare 5-block";
         }
 
-        if (level >= 2)
-        {
-            return "Classic";
-        }
-
-        return "Simple";
+        return "Classic";
     }
 
     private ClearResult ClearFullRows()
@@ -2284,8 +3102,8 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             return;
         }
 
-        float alpha = Mathf.Lerp(0.09f, 0.38f, Mathf.PingPong(Time.time * 4f, 1f));
-        deathWarningMaterial.color = MutedColor(new Color(0.78f, 0.08f, 0.08f, alpha));
+        float alpha = Mathf.Lerp(0.2f, 0.62f, Mathf.PingPong(Time.time * 4f, 1f));
+        deathWarningMaterial.color = MutedColor(new Color(0.62f, 0.03f, 0.04f, alpha));
     }
 
     private void RefreshDeathWarningVisual()
@@ -2299,6 +3117,49 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         deathWarningBar.localScale = IsSideFace(activeFace)
             ? new Vector3(0.045f, 0.92f, BoardWidth)
             : new Vector3(BoardWidth, 0.92f, 0.045f);
+    }
+
+    private void UpdateTutorialTargetMarker()
+    {
+        if (tutorialTargetMarker == null || tutorialManager == null)
+        {
+            return;
+        }
+
+        bool show = IsTutorialRunning && tutorialManager.CurrentStep == TutorialManager.TutorialStep.MoveHorizontal;
+        tutorialTargetMarker.gameObject.SetActive(show);
+        if (!show)
+        {
+            return;
+        }
+
+        int markerY = currentOrigin.y;
+        int minX = 0;
+        int maxX = 0;
+        if (currentCells != null && currentCells.Length > 0)
+        {
+            minX = currentCells[0].x;
+            maxX = currentCells[0].x;
+            for (int i = 1; i < currentCells.Length; i++)
+            {
+                minX = Mathf.Min(minX, currentCells[i].x);
+                maxX = Mathf.Max(maxX, currentCells[i].x);
+            }
+        }
+
+        int widthCells = Mathf.Max(1, maxX - minX + 1);
+        int originX = tutorialMoveTargetX + minX;
+        Vector3 markerPosition = ViewToLocal(originX, markerY) + GetFaceOutwardNormal(activeFace) * 0.09f;
+        if (widthCells > 1)
+        {
+            Vector3 stepVector = ViewToLocal(originX + 1, markerY) - ViewToLocal(originX, markerY);
+            markerPosition += stepVector * (widthCells - 1) * 0.5f;
+        }
+
+        tutorialTargetMarker.localPosition = markerPosition;
+        tutorialTargetMarker.localScale = IsSideFace(activeFace)
+            ? new Vector3(CubeSize * 0.22f, CubeSize * 1.02f, CubeSize * (1.02f * widthCells))
+            : new Vector3(CubeSize * (1.02f * widthCells), CubeSize * 1.02f, CubeSize * 0.22f);
     }
 
     private bool IsNearDeath()
