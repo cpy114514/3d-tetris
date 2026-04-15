@@ -42,10 +42,10 @@ echo Local changes:
 git status --short
 echo.
 
-for /f %%c in ('git status --porcelain ^| find /c /v ""') do set "CHANGE_COUNT=%%c"
+for /f %%c in ('git status --porcelain ^| findstr /v /i /c:" README.md" ^| find /c /v ""') do set "CHANGE_COUNT=%%c"
 
 if "%CHANGE_COUNT%"=="0" (
-    echo No local changes to commit. Pushing current branch only...
+    echo No local changes to commit outside README.md. Pushing current branch only...
     git push -u origin "%BRANCH%"
     if errorlevel 1 goto failed
     goto done
@@ -62,6 +62,8 @@ echo.
 echo Staging changes...
 git add -A
 if errorlevel 1 goto failed
+git reset -q HEAD -- README.md 2>nul
+echo README.md is skipped by this upload script.
 
 git diff --cached --quiet
 if not errorlevel 1 (
