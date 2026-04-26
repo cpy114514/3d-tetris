@@ -16,6 +16,14 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         "NORMAL",
         "HARD"
     };
+    private static readonly string[] LegacyGameplayMenuObjectNames =
+    {
+        "Tutorial Button",
+        "Difficulty Selection Panel",
+        "Tutorial Prompt Panel",
+        "Tutorial Panel",
+        "back"
+    };
 
     private static readonly string[] FourPointLightNames =
     {
@@ -121,6 +129,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField] private Text gameOverText;
     [SerializeField] private Text gameOverHintText;
     [SerializeField] private Button restartButton;
+    [SerializeField] private Button gameOverBackButton;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private Text pauseText;
     [SerializeField] private Button resumeButton;
@@ -146,6 +155,111 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     [SerializeField] private Button tutorialSkipButton;
     [SerializeField] private TutorialManager tutorialManager;
 
+    [System.Serializable]
+    private struct UiPositionConfig
+    {
+        public Vector2 anchorMin;
+        public Vector2 anchorMax;
+        public Vector2 pivot;
+        public Vector2 anchoredPosition;
+        public Vector2 sizeDelta;
+
+        public UiPositionConfig(Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
+        {
+            this.anchorMin = anchorMin;
+            this.anchorMax = anchorMax;
+            this.pivot = new Vector2(0.5f, 0.5f);
+            this.anchoredPosition = anchoredPosition;
+            this.sizeDelta = sizeDelta;
+        }
+
+        public void ApplyTo(RectTransform rect)
+        {
+            if (rect == null) return;
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = pivot;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = sizeDelta;
+        }
+    }
+
+    [System.Serializable]
+    private struct UiTextConfig
+    {
+        public string text;
+        public int fontSize;
+        public FontStyle fontStyle;
+        public TextAnchor alignment;
+        public Color color;
+        public UiPositionConfig position;
+
+        public UiTextConfig(string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, Color color, UiPositionConfig position)
+        {
+            this.text = text;
+            this.fontSize = fontSize;
+            this.fontStyle = fontStyle;
+            this.alignment = alignment;
+            this.color = color;
+            this.position = position;
+        }
+    }
+
+    [System.Serializable]
+    private struct UiButtonConfig
+    {
+        public string label;
+        public Color color;
+        public UiPositionConfig position;
+
+        public UiButtonConfig(string label, Color color, UiPositionConfig position)
+        {
+            this.label = label;
+            this.color = color;
+            this.position = position;
+        }
+    }
+
+    [Header("UI - Game Over Panel")]
+    [SerializeField] private bool useGameOverPanelConfig;
+    [SerializeField] private GameObject gameOverPanelPrefab;
+    [SerializeField] private Color gameOverPanelColor = new Color(0f, 0f, 0f, 0.68f);
+    [SerializeField] private UiPositionConfig gameOverPanelPosition = new UiPositionConfig(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 44f), new Vector2(420f, 116f));
+    [SerializeField] private Color gameOverRedBarColor = new Color(0.78f, 0.03f, 0.04f, 0.92f);
+    [SerializeField] private UiPositionConfig gameOverRedBarPosition = new UiPositionConfig(new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, -70f), new Vector2(0f, 70f));
+    [SerializeField] private UiTextConfig gameOverTitleConfig = new UiTextConfig("GAME OVER", 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new UiPositionConfig(new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero));
+    [SerializeField] private UiTextConfig gameOverHintConfig = new UiTextConfig("Choose an action", 18, FontStyle.Normal, TextAnchor.MiddleCenter, Color.white, new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(320f, 24f)));
+    [SerializeField] private UiButtonConfig gameOverRetryButtonConfig = new UiButtonConfig("RETRY", new Color(0.86f, 0.18f, 0.16f, 1f), new UiPositionConfig(new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-104f, 24f), new Vector2(176f, 40f)));
+    [SerializeField] private UiButtonConfig gameOverBackButtonConfig = new UiButtonConfig("BACK", new Color(0.34f, 0.38f, 0.42f, 1f), new UiPositionConfig(new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(104f, 24f), new Vector2(176f, 40f)));
+
+    [Header("UI - Pause Menu")]
+    [SerializeField] private bool usePauseMenuConfig;
+    [SerializeField] private GameObject pausePanelPrefab;
+    [SerializeField] private Color pausePanelColor = new Color(0f, 0f, 0f, 0.78f);
+    [SerializeField] private UiPositionConfig pausePanelPosition = new UiPositionConfig(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 520f));
+    [SerializeField] private UiTextConfig pauseTextConfig = new UiTextConfig("PAUSED", 38, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(360f, 60f)));
+    [SerializeField] private UiButtonConfig pauseResumeButtonConfig = new UiButtonConfig("RESUME", new Color(0.13f, 0.68f, 0.44f, 1f), new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -140f), new Vector2(280f, 52f)));
+    [SerializeField] private UiButtonConfig pauseRestartButtonConfig = new UiButtonConfig("RESTART", new Color(0.9f, 0.36f, 0.18f, 1f), new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -210f), new Vector2(280f, 52f)));
+    [SerializeField] private UiButtonConfig pauseSettingsButtonConfig = new UiButtonConfig("SETTINGS", new Color(0.18f, 0.48f, 0.86f, 1f), new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(280f, 52f)));
+    [SerializeField] private UiButtonConfig pauseMainMenuButtonConfig = new UiButtonConfig("MAIN MENU", new Color(0.58f, 0.42f, 0.84f, 1f), new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -350f), new Vector2(280f, 52f)));
+
+    [Header("UI - Settings Panel")]
+    [SerializeField] private bool useSettingsPanelConfig;
+    [SerializeField] private GameObject settingsPanelPrefab;
+    [SerializeField] private Color settingsPanelColor = new Color(0f, 0f, 0f, 0.98f);
+    [SerializeField] private UiPositionConfig settingsPanelPosition = new UiPositionConfig(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 850f));
+    [SerializeField] private UiTextConfig settingsTitleConfig = new UiTextConfig("SETTINGS", 100, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new UiPositionConfig(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -66.841f), new Vector2(667.7963f, 190.3173f)));
+
+    [Header("UI - Tutorial Overlay")]
+    [SerializeField] private bool useTutorialConfig;
+    [SerializeField] private GameObject tutorialOverlayPrefab;
+    [SerializeField] private Color tutorialOverlayColor = new Color(0f, 0f, 0f, 0.76f);
+    [SerializeField] private UiPositionConfig tutorialOverlayPosition = new UiPositionConfig(new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 84f), new Vector2(1120f, 190f));
+    [SerializeField] private UiTextConfig tutorialStepTextConfig = new UiTextConfig("", 26, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new UiPositionConfig(new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(-48f, 14f), new Vector2(-204f, -30f)));
+    [SerializeField] private UiButtonConfig tutorialSkipButtonConfig = new UiButtonConfig("SKIP", new Color(0.35f, 0.38f, 0.41f, 1f), new UiPositionConfig(new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-92f, 38f), new Vector2(144f, 44f)));
+
+    [Header("UI References (for runtime binding)")]
+    [SerializeField] private Text gameOverTitleText;
     private int BoardWidth => Mathf.Max(3, boardSide);
     private int BoardDepth => Mathf.Max(3, boardSide);
     private int BoardHeight => Mathf.Max(4, boardHeight);
@@ -267,6 +381,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private int selectedQualityIndex;
     private bool updatingSettingsControls;
     private int tutorialMoveTargetX;
+    private Color cachedDeathWarningColor = new Color(0.62f, 0.03f, 0.04f, 0f);
+    private float cachedDeathWarningAlpha;
+    private Vector3 cachedGravityVelocity;
+    private Color cachedFragmentColor;
+    private Vector3 cachedAngularVelocity;
 
     private bool IsTutorialRunning => tutorialManager != null && tutorialManager.IsActive;
 
@@ -287,13 +406,14 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         gameObject.AddComponent<ThreeDTetrisGame>();
     }
 
-    private void Awake()
+private void Awake()
     {
         Application.targetFrameRate = 60;
         grid = new Transform[BoardWidth, BoardHeight, BoardDepth];
         activeCubes = new Transform[0];
         ghostCubes = new Transform[0];
 
+        CleanupLegacyMenuArtifacts();
         BuildPieceDefinitions();
         BuildMaterials();
         BuildWorld();
@@ -533,6 +653,22 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 return;
             }
         }
+        else if (step == TutorialManager.TutorialStep.RotatePiece)
+        {
+            if (Input.GetKeyDown(KeyCode.W))
+            {
+                if (tutorialManager.AllowsAction(TutorialManager.TutorialAction.RotatePiece) && TryRotate(1))
+                {
+                    tutorialManager.ReportActionSuccess(TutorialManager.TutorialAction.RotatePiece);
+                }
+                else
+                {
+                    tutorialManager.ReportWrongAction("Rotate blocked. Try again.");
+                }
+
+                return;
+            }
+        }
         else if (step == TutorialManager.TutorialStep.PlacePiece || step == TutorialManager.TutorialStep.ConnectedClear)
         {
             if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.S))
@@ -627,6 +763,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             Image scorePanel = CreateUiImage("Score Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.48f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -18f), new Vector2(250f, 76f));
             scoreText = CreateUiText("Score Text", scorePanel.transform, "Score 0", 42, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(222f, 64f));
         }
+        EnsureTextPulseAnimation(scoreText);
 
         if (nextLabelText == null)
         {
@@ -646,23 +783,48 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (gameOverPanel == null)
         {
-            Image panel = CreateUiImage("Game Over Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.68f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 34f), new Vector2(320f, 104f));
+            Image panel = CreateUiImage("Game Over Panel", gameCanvas.transform, new Color(0f, 0f, 0f, 0.68f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 44f), new Vector2(420f, 116f));
             gameOverPanel = panel.gameObject;
         }
+        SetUiRect(gameOverPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 44f), new Vector2(420f, 116f));
+        EnsurePanelAnimation(gameOverPanel);
+        CleanupLegacyGameOverControls();
 
         if (gameOverHintText == null)
         {
-            gameOverHintText = CreateUiText("Restart Hint", gameOverPanel.transform, "Click restart to play again", 18, FontStyle.Normal, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(300f, 28f));
+            gameOverHintText = CreateUiText("Restart Hint", gameOverPanel.transform, "Choose an action", 18, FontStyle.Normal, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(300f, 24f));
         }
+        gameOverHintText.text = "Choose an action";
+        SetUiRect(gameOverHintText, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(320f, 24f));
 
         if (restartButton == null)
         {
-            restartButton = CreateUiButton("Restart Button", gameOverPanel.transform, "RESTART", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(190f, 42f));
+            restartButton = CreateUiButton("Restart Button", gameOverPanel.transform, "RETRY", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-104f, 24f), new Vector2(176f, 40f));
         }
+        if (restartButton.transform.parent != gameOverPanel.transform)
+        {
+            restartButton.transform.SetParent(gameOverPanel.transform, false);
+        }
+        SetUiRect(restartButton, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-104f, 24f), new Vector2(176f, 40f));
+        SetButtonLabel(restartButton, "RETRY");
         ApplyButtonColor(restartButton, new Color(0.86f, 0.18f, 0.16f, 1f));
 
         restartButton.onClick.RemoveListener(ResetGame);
         restartButton.onClick.AddListener(ResetGame);
+
+        if (gameOverBackButton == null)
+        {
+            gameOverBackButton = CreateUiButton("Game Over Back Button", gameOverPanel.transform, "BACK", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(104f, 24f), new Vector2(176f, 40f));
+        }
+        if (gameOverBackButton.transform.parent != gameOverPanel.transform)
+        {
+            gameOverBackButton.transform.SetParent(gameOverPanel.transform, false);
+        }
+        SetUiRect(gameOverBackButton, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(104f, 24f), new Vector2(176f, 40f));
+        SetButtonLabel(gameOverBackButton, "BACK");
+        ApplyButtonColor(gameOverBackButton, new Color(0.34f, 0.38f, 0.42f, 1f));
+        gameOverBackButton.onClick.RemoveListener(ReturnToStartScene);
+        gameOverBackButton.onClick.AddListener(ReturnToStartScene);
 
         if (pausePanel == null)
         {
@@ -677,6 +839,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 pauseRect.sizeDelta = new Vector2(460f, 520f);
             }
         }
+        EnsurePanelAnimation(pausePanel);
 
         if (pauseText == null)
         {
@@ -720,6 +883,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         SetupSettingsPanel();
         SetupTutorialOverlay();
         InitializeTutorialManager();
+
+        if (useGameOverPanelConfig || usePauseMenuConfig || useSettingsPanelConfig || useTutorialConfig)
+        {
+            ApplyAllUiConfigs();
+        }
 
         UpdateUi();
     }
@@ -772,6 +940,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 settingsImage.color = new Color(0f, 0f, 0f, 0.98039216f);
             }
         }
+        EnsurePanelAnimation(settingsPanel);
 
         Transform title = settingsPanel.transform.Find("Settings Title");
         if (title == null)
@@ -810,11 +979,25 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
         SetUiRect(fullscreenToggle, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -285f), new Vector2(400f, 50f));
 
-        SetUiObjectActive(settingsPanel.transform.Find("Resolution Label"), false);
+        Transform resolutionLabel = settingsPanel.transform.Find("Resolution Label");
+        SetUiObjectActive(resolutionLabel, true);
+        if (resolutionLabel != null)
+        {
+            SetUiRect(resolutionLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -372f), new Vector2(180f, 36f));
+            Text resolutionLabelText = resolutionLabel.GetComponent<Text>();
+            if (resolutionLabelText != null)
+            {
+                resolutionLabelText.fontSize = 32;
+                resolutionLabelText.fontStyle = FontStyle.Bold;
+                resolutionLabelText.alignment = TextAnchor.MiddleLeft;
+                resolutionLabelText.color = Color.white;
+            }
+        }
+
         if (resolutionDropdown != null)
         {
             resolutionDropdown.gameObject.SetActive(true);
-            SetUiRect(resolutionDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(86f, -350f), new Vector2(300f, 42f));
+            SetUiRect(resolutionDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -374f), new Vector2(300f, 42f));
         }
 
         if (previousResolutionButton == null)
@@ -836,11 +1019,25 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
         HideButtonObject(nextResolutionButton);
 
-        SetUiObjectActive(settingsPanel.transform.Find("Quality Label"), false);
+        Transform qualityLabel = settingsPanel.transform.Find("Quality Label");
+        SetUiObjectActive(qualityLabel, true);
+        if (qualityLabel != null)
+        {
+            SetUiRect(qualityLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -446f), new Vector2(180f, 36f));
+            Text qualityLabelText = qualityLabel.GetComponent<Text>();
+            if (qualityLabelText != null)
+            {
+                qualityLabelText.fontSize = 32;
+                qualityLabelText.fontStyle = FontStyle.Bold;
+                qualityLabelText.alignment = TextAnchor.MiddleLeft;
+                qualityLabelText.color = Color.white;
+            }
+        }
+
         if (qualityDropdown != null)
         {
             qualityDropdown.gameObject.SetActive(true);
-            SetUiRect(qualityDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -425f), new Vector2(300f, 42f));
+            SetUiRect(qualityDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -448f), new Vector2(300f, 42f));
         }
 
         if (previousQualityButton == null)
@@ -862,7 +1059,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
         HideButtonObject(nextQualityButton);
 
-        SetupGameplayDifficultyControl();
+        HideGameplayDifficultySettingsControls();
 
         if (settingsBackButton == null)
         {
@@ -875,52 +1072,26 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         RefreshSettingsControls();
     }
 
-    private void SetupGameplayDifficultyControl()
+    private void HideGameplayDifficultySettingsControls()
     {
-        Transform difficultyLabel = settingsPanel.transform.Find("Gameplay Difficulty Label");
-        if (difficultyLabel == null)
+        if (settingsPanel == null)
         {
-            difficultyLabel = CreateUiText("Gameplay Difficulty Label", settingsPanel.transform, "Difficulty", 32, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -500f), new Vector2(180f, 36f)).transform;
+            return;
         }
 
-        SetUiRect(difficultyLabel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -500f), new Vector2(180f, 36f));
-        Text labelText = difficultyLabel.GetComponent<Text>();
-        if (labelText != null)
-        {
-            labelText.fontSize = 32;
-            labelText.fontStyle = FontStyle.Bold;
-            labelText.alignment = TextAnchor.MiddleLeft;
-            labelText.color = Color.white;
-        }
-
-        if (gameplayDifficultyDropdown == null)
-        {
-            Transform existing = settingsPanel.transform.Find("Gameplay Difficulty Dropdown");
-            gameplayDifficultyDropdown = existing != null ? existing.GetComponent<Dropdown>() : null;
-        }
-
-        if (gameplayDifficultyDropdown == null && qualityDropdown != null)
-        {
-            gameplayDifficultyDropdown = Instantiate(qualityDropdown, settingsPanel.transform);
-            gameplayDifficultyDropdown.name = "Gameplay Difficulty Dropdown";
-            gameplayDifficultyDropdown.onValueChanged = new Dropdown.DropdownEvent();
-        }
+        SetUiObjectActive(settingsPanel.transform.Find("Gameplay Difficulty Label"), false);
+        SetUiObjectActive(settingsPanel.transform.Find("Gameplay Difficulty Dropdown"), false);
+        SetUiObjectActive(settingsPanel.transform.Find("Gameplay Difficulty Value"), false);
 
         if (gameplayDifficultyDropdown != null)
         {
-            gameplayDifficultyDropdown.gameObject.SetActive(true);
             gameplayDifficultyDropdown.onValueChanged.RemoveListener(SetGameplayDifficultyDropdownIndex);
-            SetUiRect(gameplayDifficultyDropdown, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
-            PopulateGameplayDifficultyDropdown();
-        }
-        else if (gameplayDifficultyValueText == null)
-        {
-            gameplayDifficultyValueText = CreateUiText("Gameplay Difficulty Value", settingsPanel.transform, GameplayDifficultyNames[GameplayDifficultyIndex], 24, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
+            gameplayDifficultyDropdown.gameObject.SetActive(false);
         }
 
         if (gameplayDifficultyValueText != null)
         {
-            SetUiRect(gameplayDifficultyValueText, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
+            gameplayDifficultyValueText.gameObject.SetActive(false);
         }
     }
 
@@ -949,6 +1120,7 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 rect.sizeDelta = new Vector2(1120f, 190f);
             }
         }
+        EnsurePanelAnimation(tutorialOverlayPanel);
 
         if (tutorialStepText == null)
         {
@@ -1046,11 +1218,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             qualityDropdown.onValueChanged.AddListener(SetQualityDropdownIndex);
         }
 
-        if (gameplayDifficultyDropdown != null)
-        {
-            gameplayDifficultyDropdown.onValueChanged.RemoveListener(SetGameplayDifficultyDropdownIndex);
-            gameplayDifficultyDropdown.onValueChanged.AddListener(SetGameplayDifficultyDropdownIndex);
-        }
     }
 
     private void TogglePause()
@@ -1144,7 +1311,6 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         RefreshResolutionOptions(false);
         RefreshQualityOptions(false);
-        RefreshGameplayDifficultyOptions(false);
         updatingSettingsControls = false;
     }
 
@@ -1554,22 +1720,45 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
 
         if (gameOverPanel != null)
         {
+            if (gameOver)
+            {
+                EnsurePanelAnimation(gameOverPanel);
+            }
+
             gameOverPanel.SetActive(gameOver);
         }
 
         if (pausePanel != null)
         {
-            pausePanel.SetActive(paused && !gameOver && !settingsOpen);
+            bool showPause = paused && !gameOver && !settingsOpen;
+            if (showPause)
+            {
+                EnsurePanelAnimation(pausePanel);
+            }
+
+            pausePanel.SetActive(showPause);
         }
 
         if (settingsPanel != null)
         {
-            settingsPanel.SetActive(paused && !gameOver && settingsOpen);
+            bool showSettings = paused && !gameOver && settingsOpen;
+            if (showSettings)
+            {
+                EnsurePanelAnimation(settingsPanel);
+            }
+
+            settingsPanel.SetActive(showSettings);
         }
 
         if (tutorialOverlayPanel != null)
         {
-            tutorialOverlayPanel.SetActive(IsTutorialRunning && !gameOver && !paused);
+            bool showTutorial = IsTutorialRunning && !gameOver && !paused;
+            if (showTutorial)
+            {
+                EnsurePanelAnimation(tutorialOverlayPanel);
+            }
+
+            tutorialOverlayPanel.SetActive(showTutorial);
         }
     }
 
@@ -1622,6 +1811,95 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+    }
+
+    private void CleanupLegacyMenuArtifacts()
+    {
+        MainMenu[] legacyMenus = FindObjectsOfType<MainMenu>(true);
+        for (int i = 0; i < legacyMenus.Length; i++)
+        {
+            MainMenu menu = legacyMenus[i];
+            if (menu == null || menu.gameObject == null || menu.gameObject == gameObject || menu.gameObject.scene != gameObject.scene)
+            {
+                continue;
+            }
+
+            DisableAndDestroyObject(menu.gameObject);
+        }
+
+        for (int i = 0; i < LegacyGameplayMenuObjectNames.Length; i++)
+        {
+            DestroySceneObjectsByName(LegacyGameplayMenuObjectNames[i]);
+        }
+    }
+
+    private void CleanupLegacyGameOverControls()
+    {
+        if (gameOverPanel == null)
+        {
+            return;
+        }
+
+        Button[] buttons = gameOverPanel.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            Button button = buttons[i];
+            if (button == null)
+            {
+                continue;
+            }
+
+            string name = button.gameObject.name;
+            if (name == "Restart Button" || name == "Game Over Back Button")
+            {
+                continue;
+            }
+
+            DisableAndDestroyObject(button.gameObject);
+        }
+
+        MainMenu[] legacyMenus = gameOverPanel.GetComponentsInChildren<MainMenu>(true);
+        for (int i = 0; i < legacyMenus.Length; i++)
+        {
+            if (legacyMenus[i] != null)
+            {
+                DisableAndDestroyObject(legacyMenus[i].gameObject);
+            }
+        }
+    }
+
+    private void DestroySceneObjectsByName(string objectName)
+    {
+        if (string.IsNullOrEmpty(objectName))
+        {
+            return;
+        }
+
+        GameObject[] objects = Resources.FindObjectsOfTypeAll<GameObject>();
+        for (int i = 0; i < objects.Length; i++)
+        {
+            GameObject candidate = objects[i];
+            if (candidate == null || candidate.scene != gameObject.scene || candidate == gameObject)
+            {
+                continue;
+            }
+
+            if (candidate.name == objectName)
+            {
+                DisableAndDestroyObject(candidate);
+            }
+        }
+    }
+
+    private static void DisableAndDestroyObject(GameObject target)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        target.SetActive(false);
+        Destroy(target);
     }
 
     private Image CreateUiImage(string objectName, Transform parent, Color color, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
@@ -1745,9 +2023,86 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         Image image = CreateUiImage(objectName, parent, new Color(0.26f, 0.3f, 0.34f, 1f), anchorMin, anchorMax, anchoredPosition, sizeDelta);
         Button button = image.gameObject.AddComponent<Button>();
         ApplyButtonColor(button, image.color);
+        EnsureButtonAnimation(button.gameObject);
 
         CreateUiText("Label", image.transform, label, 22, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
         return button;
+    }
+
+    private static void SetButtonLabel(Button button, string text)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        Text label = button.GetComponentInChildren<Text>(true);
+        if (label == null)
+        {
+            GameObject labelObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
+            labelObject.transform.SetParent(button.transform, false);
+            label = labelObject.GetComponent<Text>();
+        }
+
+        RectTransform labelRect = label.GetComponent<RectTransform>();
+        if (labelRect != null)
+        {
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.pivot = new Vector2(0.5f, 0.5f);
+            labelRect.anchoredPosition = Vector2.zero;
+            labelRect.sizeDelta = Vector2.zero;
+        }
+
+        if (label.font == null)
+        {
+            Font builtInFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (builtInFont != null)
+            {
+                label.font = builtInFont;
+            }
+        }
+
+        label.text = text;
+        label.fontSize = 22;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.horizontalOverflow = HorizontalWrapMode.Overflow;
+        label.verticalOverflow = VerticalWrapMode.Overflow;
+        label.raycastTarget = false;
+    }
+
+    private void EnsurePanelAnimation(GameObject panel)
+    {
+        if (panel != null && panel.GetComponent<UiPanelAnimator>() == null)
+        {
+            panel.AddComponent<UiPanelAnimator>();
+        }
+    }
+
+    private void EnsureButtonAnimation(GameObject buttonObject)
+    {
+        if (buttonObject == null)
+        {
+            return;
+        }
+
+        UiFloatButton floatButton = buttonObject.GetComponent<UiFloatButton>();
+        if (floatButton == null)
+        {
+            floatButton = buttonObject.AddComponent<UiFloatButton>();
+        }
+
+        floatButton.SetDelay(0f);
+    }
+
+    private void EnsureTextPulseAnimation(Text text)
+    {
+        if (text != null && text.GetComponent<UiTextPulseOnChange>() == null)
+        {
+            text.gameObject.AddComponent<UiTextPulseOnChange>();
+        }
     }
 
     private void ApplyButtonColor(Button button, Color color)
@@ -2399,6 +2754,9 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
             case TutorialManager.TutorialStep.MoveHorizontal:
                 SetupTutorialMoveExample();
                 break;
+            case TutorialManager.TutorialStep.RotatePiece:
+                SetupTutorialRotatePieceStep();
+                break;
             case TutorialManager.TutorialStep.PlacePiece:
                 SetupTutorialPlaceStep();
                 break;
@@ -2425,6 +2783,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     }
 
     private void SetupTutorialPlaceStep()
+    {
+        pieceFalling = false;
+        fallTimer = 0f;
+    }
+
+    private void SetupTutorialRotatePieceStep()
     {
         pieceFalling = false;
         fallTimer = 0f;
@@ -3103,7 +3467,12 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         }
 
         float alpha = Mathf.Lerp(0.2f, 0.62f, Mathf.PingPong(Time.time * 4f, 1f));
-        deathWarningMaterial.color = MutedColor(new Color(0.62f, 0.03f, 0.04f, alpha));
+        if (alpha != cachedDeathWarningAlpha)
+        {
+            cachedDeathWarningAlpha = alpha;
+            cachedDeathWarningColor.a = alpha;
+            deathWarningMaterial.color = MutedColor(cachedDeathWarningColor);
+        }
     }
 
     private void RefreshDeathWarningVisual()
@@ -3208,16 +3577,13 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
         direction.Normalize();
 
         Vector3 velocity = direction * Random.Range(ClearFragmentBlastSpeed * 0.65f, ClearFragmentBlastSpeed * 1.12f);
-        Vector3 angularVelocity = new Vector3(
-            Random.Range(-280f, 280f),
-            Random.Range(-360f, 360f),
-            Random.Range(-300f, 300f));
+        cachedAngularVelocity.Set(Random.Range(-280f, 280f), Random.Range(-360f, 360f), Random.Range(-300f, 300f));
 
         clearEffects.Add(new ClearFragmentEffect(
             fragment,
             fragmentMaterial,
             velocity,
-            angularVelocity,
+            cachedAngularVelocity,
             Random.Range(ClearEffectDuration * 0.82f, ClearEffectDuration * 1.18f),
             fragmentColor,
             fragmentScale));
@@ -3226,6 +3592,11 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     private void UpdateClearEffects()
     {
         float deltaTime = Time.deltaTime;
+        float gravity = ClearFragmentGravity;
+        float drag = ClearFragmentDrag;
+        float dragFactor = Mathf.Exp(-drag * deltaTime);
+        cachedGravityVelocity.Set(0f, -gravity * deltaTime, 0f);
+
         for (int i = clearEffects.Count - 1; i >= 0; i--)
         {
             ClearFragmentEffect effect = clearEffects[i];
@@ -3247,17 +3618,17 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
                 continue;
             }
 
-            effect.Velocity += Vector3.down * ClearFragmentGravity * deltaTime;
-            effect.Velocity *= Mathf.Exp(-ClearFragmentDrag * deltaTime);
+            effect.Velocity += cachedGravityVelocity;
+            effect.Velocity *= dragFactor;
             effect.Transform.position += effect.Velocity * deltaTime;
             effect.Transform.Rotate(effect.AngularVelocity * deltaTime, Space.Self);
 
             float progress = Mathf.Clamp01(effect.Age / effect.Duration);
             if (effect.Material != null)
             {
-                Color color = effect.Color;
-                color.a = progress < 0.72f ? 1f : Mathf.InverseLerp(1f, 0.72f, progress);
-                effect.Material.color = color;
+                cachedFragmentColor = effect.Color;
+                cachedFragmentColor.a = progress < 0.72f ? 1f : Mathf.InverseLerp(1f, 0.72f, progress);
+                effect.Material.color = cachedFragmentColor;
             }
 
             if (progress > 0.82f)
@@ -3792,5 +4163,176 @@ public sealed class ThreeDTetrisGame : MonoBehaviour
     {
         public int Rows;
         public int Blocks;
+    }
+
+    private void ApplyGameOverRedBarConfig()
+    {
+        if (gameOverRedBar == null) return;
+        gameOverRedBar.color = MutedColor(gameOverRedBarColor);
+        gameOverRedBarPosition.ApplyTo(gameOverRedBar.GetComponent<RectTransform>());
+    }
+
+    private void ApplyGameOverPanelConfig()
+    {
+        if (gameOverPanel == null) return;
+        Image panelImage = gameOverPanel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.color = gameOverPanelColor;
+        }
+        gameOverPanelPosition.ApplyTo(gameOverPanel.GetComponent<RectTransform>());
+    }
+
+    private void ApplyGameOverTitleConfig()
+    {
+        if (gameOverTitleText == null) return;
+        gameOverTitleText.text = gameOverTitleConfig.text;
+        gameOverTitleText.fontSize = gameOverTitleConfig.fontSize;
+        gameOverTitleText.fontStyle = gameOverTitleConfig.fontStyle;
+        gameOverTitleText.alignment = gameOverTitleConfig.alignment;
+        gameOverTitleText.color = gameOverTitleConfig.color;
+        gameOverTitleConfig.position.ApplyTo(gameOverTitleText.GetComponent<RectTransform>());
+    }
+
+    private void ApplyGameOverHintConfig()
+    {
+        if (gameOverHintText == null) return;
+        gameOverHintText.text = gameOverHintConfig.text;
+        gameOverHintText.fontSize = gameOverHintConfig.fontSize;
+        gameOverHintText.fontStyle = gameOverHintConfig.fontStyle;
+        gameOverHintText.alignment = gameOverHintConfig.alignment;
+        gameOverHintText.color = gameOverHintConfig.color;
+        gameOverHintConfig.position.ApplyTo(gameOverHintText.GetComponent<RectTransform>());
+    }
+
+    private void ApplyGameOverRetryButtonConfig()
+    {
+        if (restartButton == null) return;
+        SetButtonLabel(restartButton, gameOverRetryButtonConfig.label);
+        ApplyButtonColor(restartButton, gameOverRetryButtonConfig.color);
+        gameOverRetryButtonConfig.position.ApplyTo(restartButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplyGameOverBackButtonConfig()
+    {
+        if (gameOverBackButton == null) return;
+        SetButtonLabel(gameOverBackButton, gameOverBackButtonConfig.label);
+        ApplyButtonColor(gameOverBackButton, gameOverBackButtonConfig.color);
+        gameOverBackButtonConfig.position.ApplyTo(gameOverBackButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplyPausePanelConfig()
+    {
+        if (pausePanel == null) return;
+        Image panelImage = pausePanel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.color = pausePanelColor;
+        }
+        pausePanelPosition.ApplyTo(pausePanel.GetComponent<RectTransform>());
+    }
+
+    private void ApplyPauseTextConfig()
+    {
+        if (pauseText == null) return;
+        pauseText.text = pauseTextConfig.text;
+        pauseText.fontSize = pauseTextConfig.fontSize;
+        pauseText.fontStyle = pauseTextConfig.fontStyle;
+        pauseText.alignment = pauseTextConfig.alignment;
+        pauseText.color = pauseTextConfig.color;
+        pauseTextConfig.position.ApplyTo(pauseText.GetComponent<RectTransform>());
+    }
+
+    private void ApplyPauseResumeButtonConfig()
+    {
+        if (resumeButton == null) return;
+        SetButtonLabel(resumeButton, pauseResumeButtonConfig.label);
+        ApplyButtonColor(resumeButton, pauseResumeButtonConfig.color);
+        pauseResumeButtonConfig.position.ApplyTo(resumeButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplyPauseRestartButtonConfig()
+    {
+        if (pauseRestartButton == null) return;
+        SetButtonLabel(pauseRestartButton, pauseRestartButtonConfig.label);
+        ApplyButtonColor(pauseRestartButton, pauseRestartButtonConfig.color);
+        pauseRestartButtonConfig.position.ApplyTo(pauseRestartButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplyPauseSettingsButtonConfig()
+    {
+        if (pauseSettingsButton == null) return;
+        SetButtonLabel(pauseSettingsButton, pauseSettingsButtonConfig.label);
+        ApplyButtonColor(pauseSettingsButton, pauseSettingsButtonConfig.color);
+        pauseSettingsButtonConfig.position.ApplyTo(pauseSettingsButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplyPauseMainMenuButtonConfig()
+    {
+        if (mainMenuButton == null) return;
+        SetButtonLabel(mainMenuButton, pauseMainMenuButtonConfig.label);
+        ApplyButtonColor(mainMenuButton, pauseMainMenuButtonConfig.color);
+        pauseMainMenuButtonConfig.position.ApplyTo(mainMenuButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplySettingsPanelConfig()
+    {
+        if (settingsPanel == null) return;
+        Image panelImage = settingsPanel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.color = settingsPanelColor;
+        }
+        settingsPanelPosition.ApplyTo(settingsPanel.GetComponent<RectTransform>());
+    }
+
+    private void ApplyTutorialOverlayConfig()
+    {
+        if (tutorialOverlayPanel == null) return;
+        Image panelImage = tutorialOverlayPanel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.color = tutorialOverlayColor;
+        }
+        tutorialOverlayPosition.ApplyTo(tutorialOverlayPanel.GetComponent<RectTransform>());
+    }
+
+    private void ApplyTutorialStepTextConfig()
+    {
+        if (tutorialStepText == null) return;
+        tutorialStepText.text = tutorialStepTextConfig.text;
+        tutorialStepText.fontSize = tutorialStepTextConfig.fontSize;
+        tutorialStepText.fontStyle = tutorialStepTextConfig.fontStyle;
+        tutorialStepText.alignment = tutorialStepTextConfig.alignment;
+        tutorialStepText.color = tutorialStepTextConfig.color;
+        tutorialStepTextConfig.position.ApplyTo(tutorialStepText.GetComponent<RectTransform>());
+    }
+
+    private void ApplyTutorialSkipButtonConfig()
+    {
+        if (tutorialSkipButton == null) return;
+        SetButtonLabel(tutorialSkipButton, tutorialSkipButtonConfig.label);
+        ApplyButtonColor(tutorialSkipButton, tutorialSkipButtonConfig.color);
+        tutorialSkipButtonConfig.position.ApplyTo(tutorialSkipButton.GetComponent<RectTransform>());
+    }
+
+    private void ApplyAllUiConfigs()
+    {
+        ApplyGameOverRedBarConfig();
+        ApplyGameOverPanelConfig();
+        ApplyGameOverTitleConfig();
+        ApplyGameOverHintConfig();
+        ApplyGameOverRetryButtonConfig();
+        ApplyGameOverBackButtonConfig();
+        ApplyPausePanelConfig();
+        ApplyPauseTextConfig();
+        ApplyPauseResumeButtonConfig();
+        ApplyPauseRestartButtonConfig();
+        ApplyPauseSettingsButtonConfig();
+        ApplyPauseMainMenuButtonConfig();
+        ApplySettingsPanelConfig();
+        ApplyTutorialOverlayConfig();
+        ApplyTutorialStepTextConfig();
+        ApplyTutorialSkipButtonConfig();
     }
 }

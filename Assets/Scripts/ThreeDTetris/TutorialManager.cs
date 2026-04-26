@@ -12,6 +12,7 @@ public sealed class TutorialManager : MonoBehaviour
     {
         None,
         MoveHorizontal,
+        RotatePiece,
         PlacePiece,
         RotateContainer,
         ConnectedClear,
@@ -22,6 +23,7 @@ public sealed class TutorialManager : MonoBehaviour
     public enum TutorialAction
     {
         MoveHorizontal,
+        RotatePiece,
         PlacePiece,
         RotateContainer,
         Preview
@@ -159,6 +161,8 @@ public sealed class TutorialManager : MonoBehaviour
         {
             case TutorialStep.MoveHorizontal:
                 return action == TutorialAction.MoveHorizontal;
+            case TutorialStep.RotatePiece:
+                return action == TutorialAction.RotatePiece;
             case TutorialStep.PlacePiece:
                 return action == TutorialAction.PlacePiece;
             case TutorialStep.RotateContainer:
@@ -199,6 +203,13 @@ public sealed class TutorialManager : MonoBehaviour
                 if (action == TutorialAction.MoveHorizontal)
                 {
                     AdvanceWithSuccess("Good. Position reached.");
+                }
+                break;
+
+            case TutorialStep.RotatePiece:
+                if (action == TutorialAction.RotatePiece)
+                {
+                    AdvanceWithSuccess("Good. Piece rotated.");
                 }
                 break;
 
@@ -275,6 +286,9 @@ public sealed class TutorialManager : MonoBehaviour
         switch (currentStep)
         {
             case TutorialStep.MoveHorizontal:
+                nextStep = TutorialStep.RotatePiece;
+                break;
+            case TutorialStep.RotatePiece:
                 nextStep = TutorialStep.PlacePiece;
                 break;
             case TutorialStep.PlacePiece:
@@ -341,15 +355,17 @@ public sealed class TutorialManager : MonoBehaviour
         switch (currentStep)
         {
             case TutorialStep.MoveHorizontal:
-                return "Step 1/5\nUse A or D.\nMove the block to the green marker.";
+                return "Step 1/6\nUse A or D.\nMove the block to the green marker.";
+            case TutorialStep.RotatePiece:
+                return "Step 2/6\nPress W.\nRotate the block once.";
             case TutorialStep.PlacePiece:
-                return "Step 2/5\nUse S or Space.\nDrop and place the block.";
+                return "Step 3/6\nUse S or Space.\nDrop and place the block.";
             case TutorialStep.RotateContainer:
-                return "Step 3/5\nUse Q or E.\nRotate the container once.";
+                return "Step 4/6\nUse Q or E.\nRotate the container once.";
             case TutorialStep.ConnectedClear:
-                return "Step 4/5\nUse S or Space.\nDrop this block.\nIt clears with the next face.";
+                return "Step 5/6\nUse S or Space.\nDrop this block.\nIt clears with the next face.";
             case TutorialStep.Preview:
-                return "Step 5/5\nPress F.\nShow the preview.";
+                return "Step 6/6\nPress F.\nShow the preview.";
             default:
                 return string.Empty;
         }

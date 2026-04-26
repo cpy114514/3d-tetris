@@ -4,14 +4,6 @@ using UnityEngine.UI;
 
 public class SettingsMenu : MonoBehaviour
 {
-    private const string GameplayDifficultyKey = "GameplayDifficulty";
-    private static readonly string[] GameplayDifficultyNames =
-    {
-        "EASY",
-        "NORMAL",
-        "HARD"
-    };
-
     [Header("UI")]
     public GameObject settingsPanel;
     public Slider volumeSlider;
@@ -19,7 +11,6 @@ public class SettingsMenu : MonoBehaviour
     public Button backButton;
     public Dropdown resolutionDropdown;
     public Dropdown qualityDropdown;
-    public Dropdown gameplayDifficultyDropdown;
 
     private Resolution[] availableResolutions;
     private bool updatingControls;
@@ -34,24 +25,31 @@ public class SettingsMenu : MonoBehaviour
 
     private void Start()
     {
-        WireSettingsPanel();
-        SetupVolume();
-        SetupFullscreen();
-        EnsureInitialAutoSettings();
-        SetupGameplayDifficulty();
-    }
-
-    public void OpenSettings()
-    {
+        EnsureSettingsAnimations();
         WireSettingsPanel();
         SetupVolume();
         SetupFullscreen();
         SetupResolution();
         SetupQuality();
-        SetupGameplayDifficulty();
+        EnsureInitialAutoSettings();
+        HideGameplayDifficultyControls();
+        AlignSettingsLayout();
+    }
+
+    public void OpenSettings()
+    {
+        EnsureSettingsAnimations();
+        WireSettingsPanel();
+        SetupVolume();
+        SetupFullscreen();
+        SetupResolution();
+        SetupQuality();
+        HideGameplayDifficultyControls();
+        AlignSettingsLayout();
 
         if (settingsPanel != null)
         {
+            EnsurePanelAnimator(settingsPanel);
             settingsPanel.SetActive(true);
         }
     }
@@ -111,16 +109,6 @@ public class SettingsMenu : MonoBehaviour
         }
 
         ApplyQualityIndex(index, true);
-    }
-
-    public void SetGameplayDifficultyIndex(int index)
-    {
-        if (updatingControls)
-        {
-            return;
-        }
-
-        ApplyGameplayDifficultyIndex(index, true);
     }
 
     public void ApplyAutoResolution()
@@ -236,12 +224,48 @@ public class SettingsMenu : MonoBehaviour
             qualityDropdown.onValueChanged.AddListener(SetQualityIndex);
         }
 
-        EnsureGameplayDifficultyControl();
-        if (gameplayDifficultyDropdown != null)
+        HideGameplayDifficultyControls();
+        AlignSettingsLayout();
+        EnsureSettingsAnimations();
+    }
+
+    private void EnsureSettingsAnimations()
+    {
+        EnsurePanelAnimator(settingsPanel);
+        if (settingsPanel == null)
         {
-            gameplayDifficultyDropdown.onValueChanged.RemoveListener(SetGameplayDifficultyIndex);
-            gameplayDifficultyDropdown.onValueChanged.AddListener(SetGameplayDifficultyIndex);
+            return;
         }
+
+        Button[] buttons = settingsPanel.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            EnsureButtonAnimation(buttons[i].gameObject, i * 0.04f);
+        }
+    }
+
+    private static void EnsurePanelAnimator(GameObject panel)
+    {
+        if (panel != null && panel.GetComponent<UiPanelAnimator>() == null)
+        {
+            panel.AddComponent<UiPanelAnimator>();
+        }
+    }
+
+    private static void EnsureButtonAnimation(GameObject buttonObject, float delay)
+    {
+        if (buttonObject == null)
+        {
+            return;
+        }
+
+        UiFloatButton floatButton = buttonObject.GetComponent<UiFloatButton>();
+        if (floatButton == null)
+        {
+            floatButton = buttonObject.AddComponent<UiFloatButton>();
+        }
+
+        floatButton.SetDelay(delay);
     }
 
     private void SetupResolution()
@@ -293,74 +317,64 @@ public class SettingsMenu : MonoBehaviour
         ApplyQualityIndex(savedIndex, false);
     }
 
-    private void SetupGameplayDifficulty()
-    {
-        EnsureGameplayDifficultyControl();
-        if (gameplayDifficultyDropdown == null)
-        {
-            return;
-        }
-
-        int savedIndex = Mathf.Clamp(PlayerPrefs.GetInt(GameplayDifficultyKey, 1), 0, GameplayDifficultyNames.Length - 1);
-        updatingControls = true;
-        gameplayDifficultyDropdown.ClearOptions();
-        gameplayDifficultyDropdown.AddOptions(new List<string>(GameplayDifficultyNames));
-        gameplayDifficultyDropdown.value = savedIndex;
-        gameplayDifficultyDropdown.RefreshShownValue();
-        updatingControls = false;
-
-        ApplyGameplayDifficultyIndex(savedIndex, false);
-    }
-
-    private void EnsureGameplayDifficultyControl()
+    private void HideGameplayDifficultyControls()
     {
         if (settingsPanel == null)
         {
             return;
         }
 
-        if (gameplayDifficultyDropdown == null)
+        SetNamedObjectActive("Gameplay Difficulty Label", false);
+        SetNamedObjectActive("Gameplay Difficulty Dropdown", false);
+        SetNamedObjectActive("Gameplay Difficulty Value", false);
+    }
+
+    private void AlignSettingsLayout()
+    {
+        if (settingsPanel == null)
         {
-            Transform existingDropdown = settingsPanel.transform.Find("Gameplay Difficulty Dropdown");
-            gameplayDifficultyDropdown = existingDropdown != null ? existingDropdown.GetComponent<Dropdown>() : null;
+            return;
         }
 
-        if (gameplayDifficultyDropdown == null && qualityDropdown != null)
+        const float labelX = -190f;
+        const float controlX = 102f;
+
+        SetRect(settingsPanel.transform.Find("Settings Title"), new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(700f, 150f));
+        SetRect(settingsPanel.transform.Find("Volume Label"), new Vector2(0.5f, 1f), new Vector2(labelX, -226f), new Vector2(180f, 36f));
+        SetRect(settingsPanel.transform.Find("Resolution Label"), new Vector2(0.5f, 1f), new Vector2(labelX, -374f), new Vector2(180f, 36f));
+        SetRect(settingsPanel.transform.Find("Quality Label"), new Vector2(0.5f, 1f), new Vector2(labelX, -446f), new Vector2(180f, 36f));
+
+        if (volumeSlider != null)
         {
-            gameplayDifficultyDropdown = Instantiate(qualityDropdown, settingsPanel.transform);
-            gameplayDifficultyDropdown.name = "Gameplay Difficulty Dropdown";
-            gameplayDifficultyDropdown.onValueChanged = new Dropdown.DropdownEvent();
+            SetRect(volumeSlider.transform, new Vector2(0.5f, 1f), new Vector2(controlX, -228f), new Vector2(300f, 32f));
         }
 
-        Transform label = settingsPanel.transform.Find("Gameplay Difficulty Label");
-        if (label == null)
+        if (fullscreenToggle != null)
         {
-            GameObject labelObject = new GameObject("Gameplay Difficulty Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            labelObject.transform.SetParent(settingsPanel.transform, false);
-            label = labelObject.transform;
-
-            Text labelText = labelObject.GetComponent<Text>();
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font != null)
-            {
-                labelText.font = font;
-            }
-
-            labelText.text = "Difficulty";
-            labelText.fontSize = 32;
-            labelText.fontStyle = FontStyle.Bold;
-            labelText.alignment = TextAnchor.MiddleLeft;
-            labelText.color = Color.white;
-            labelText.raycastTarget = false;
+            SetRect(fullscreenToggle.transform, new Vector2(0.5f, 1f), new Vector2(0f, -300f), new Vector2(400f, 50f));
         }
 
-        SetRect(label, new Vector2(0.5f, 1f), new Vector2(-190f, -500f), new Vector2(180f, 36f));
-
-        if (gameplayDifficultyDropdown != null)
+        if (resolutionDropdown != null)
         {
-            gameplayDifficultyDropdown.gameObject.SetActive(true);
-            SetRect(gameplayDifficultyDropdown.transform, new Vector2(0.5f, 1f), new Vector2(102f, -500f), new Vector2(300f, 42f));
+            SetRect(resolutionDropdown.transform, new Vector2(0.5f, 1f), new Vector2(controlX, -376f), new Vector2(300f, 42f));
         }
+
+        if (qualityDropdown != null)
+        {
+            SetRect(qualityDropdown.transform, new Vector2(0.5f, 1f), new Vector2(controlX, -448f), new Vector2(300f, 42f));
+        }
+
+        if (backButton != null)
+        {
+            SetRect(backButton.transform, new Vector2(0.5f, 0f), new Vector2(0f, 56f), new Vector2(260f, 54f));
+        }
+
+        SetNamedObjectActive("Previous Resolution Button", false);
+        SetNamedObjectActive("Next Resolution Button", false);
+        SetNamedObjectActive("Resolution Value", false);
+        SetNamedObjectActive("Previous Quality Button", false);
+        SetNamedObjectActive("Next Quality Button", false);
+        SetNamedObjectActive("Quality Value", false);
     }
 
     private void RefreshResolutionOptions()
@@ -469,24 +483,6 @@ public class SettingsMenu : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    private void ApplyGameplayDifficultyIndex(int index, bool apply)
-    {
-        int clampedIndex = Mathf.Clamp(index, 0, GameplayDifficultyNames.Length - 1);
-        if (gameplayDifficultyDropdown != null && gameplayDifficultyDropdown.value != clampedIndex)
-        {
-            updatingControls = true;
-            gameplayDifficultyDropdown.value = clampedIndex;
-            gameplayDifficultyDropdown.RefreshShownValue();
-            updatingControls = false;
-        }
-
-        if (apply)
-        {
-            PlayerPrefs.SetInt(GameplayDifficultyKey, clampedIndex);
-            PlayerPrefs.Save();
-        }
-    }
-
     private static void SetRect(Transform target, Vector2 anchor, Vector2 anchoredPosition, Vector2 size)
     {
         RectTransform rect = target as RectTransform;
@@ -500,6 +496,20 @@ public class SettingsMenu : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = anchoredPosition;
         rect.sizeDelta = size;
+    }
+
+    private void SetNamedObjectActive(string objectName, bool active)
+    {
+        if (settingsPanel == null)
+        {
+            return;
+        }
+
+        Transform target = settingsPanel.transform.Find(objectName);
+        if (target != null)
+        {
+            target.gameObject.SetActive(active);
+        }
     }
 
 }
