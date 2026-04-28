@@ -24,5 +24,4 @@ Wait, why it's in 3D, and eliminate the blocks in 2d?
 :)
 
 
-Copyright © 2026. All rights reserved.
-No permission is granted to copy, modify, distribute, or use this code.
+
